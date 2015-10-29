@@ -74,7 +74,39 @@ let bencoded_to_answer = ();;
   (* GWEN COMPLETE ICI STP, LOVE LOVE *)
 
 
-      
-      
-      
-      
+let parser s =
+  let i = ref 0 in
+  let parse_string () =
+    let i_column = String.index_from s !i ':' in
+    let l = int_of_string (String.sub s !i (i_column - !i)) in
+    i := (i_column + 1 + l);
+    String.sub s (i_column + 1) l;
+  in
+  let rec aux () =
+    match s.[!i] with
+      | 'd' ->
+          let rec parsedic () =
+            match s.[!i] with
+              | 'e' ->
+                  incr i;
+                  BDic []
+              | _ ->
+                  let k = parse_string () in
+                  let v = aux () in
+                  let (BDic l) = parsedic () in
+                  BDic ((k,v) :: l)
+          in
+          incr i;
+          parsedic ();
+      | 'l' | 'i' ->
+          while s.[!i] != 'e' do
+            incr i;
+          done;
+          BDic [];
+      | x when '0' <= x && x <= '9' ->
+          BString (parse_string ());
+      | _ -> failwith "Parse error :("
+  in
+  aux ()
+;;
+          
