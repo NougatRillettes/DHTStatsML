@@ -152,3 +152,16 @@ let bencoded_to_Find_NodesAnswer b=
     with Not_found -> raise (Bad_Answer "Champ id manquant dans la réponse")
 ;;
 
+
+
+let bencoded_to_id b = 
+  let (a, dic) = bencoded_to_idAndDic b in
+  try 
+    let id = (List.assoc "id" dic) in
+      begin
+	match id with
+	|BString num -> num
+	|BDic _ ->  raise (Bad_Answer "Contenu du champ id invalide")
+      end
+  with Not_found -> raise (Bad_Answer "Champ id manquant dans la réponse")
+      
