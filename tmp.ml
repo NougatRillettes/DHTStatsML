@@ -74,6 +74,9 @@ let bencoded_to_answer = ();;
   (* GWEN COMPLETE ICI STP, LOVE LOVE *)
 
 
+
+exception Bad_Answer of string;;
+
 let parser s =
   let i = ref 0 in
   let parse_string () =
@@ -93,8 +96,12 @@ let parser s =
               | _ ->
                   let k = parse_string () in
                   let v = aux () in
-                  let (BDic l) = parsedic () in
-                  BDic ((k,v) :: l)
+		  let tmp = parsedic () in 
+		  begin
+		    match tmp with
+		    |BDic l -> BDic ((k,v) :: l)
+		    |BString _ -> raise (Bad_Answer "Réponse reçue invalide")
+		  end
           in
           incr i;
           parsedic ();
@@ -110,8 +117,6 @@ let parser s =
   aux ()
 ;;
           
-
-exception Bad_Answer of string;;
 
 
 (*bencode_to_idAndDic : bencoded -> (string*BDic 'a)*)
