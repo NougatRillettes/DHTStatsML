@@ -105,53 +105,6 @@ let bencoded_to_idAndDic b =
     end
 ;;
 
-(* bencoded_to_asnwer : bencoded -> answer *)
-let bencoded_to_PingAnswer b= 
-  let (a, dic) = bencoded_to_idAndDic b in
-  
-  begin
-    if (List.length dic != 1) 
-    then raise (Bad_Answer "Longueur du champ r invalide")
-    else 
-      try 
-	let id = (List.assoc "id" dic) in 
-	begin
-	  match id with
-	  |BString num -> {ap_t = a; ap_id = num}
-	  |BDic _ ->  raise (Bad_Answer "Contenu du champ id invalide")
-	end
-      with Not_found -> raise (Bad_Answer "Champ id manquant dans la réponse")
-  end
-
-
-let decoupe_nodes s = 
-  (String.sub s 0 20)::(String.sub s 20 20)::(String.sub s 40 20)::(String.sub s 60 20)::(String.sub s 80 20)::(String.sub s 100 20)::(String.sub s 120 20)::(String.sub s 140 20)::[]
-;;
-      
-      
-let bencoded_to_Find_NodesAnswer b= 
-  let (a, dic) = bencoded_to_idAndDic b in
-  if (List.length dic != 2) 
-  then raise (Bad_Answer "Longueur du champ r invalide")
-  else 
-    try 
-      let id = (List.assoc "id" dic) in 
-      begin
-	match id with
-	|BString num -> 
-	  begin 
-	    let nodes = (List.assoc "nodes" dic) in 
-	    begin
-	      match nodes with
-	      |BString id_nodes -> {afn_t = a; afn_id = num; afn_nodes = (decoupe_nodes id_nodes)}
-	      |BDic _ ->  raise (Bad_Answer "Contenu du champ nodes invalide")
-	    end
-	  end
-	|BDic _ ->  raise (Bad_Answer "Contenu du champ id invalide")
-      end
-    with Not_found -> raise (Bad_Answer "Champ id manquant dans la réponse")
-;;
-
 
 
 let bencoded_to_id b = 
@@ -165,3 +118,35 @@ let bencoded_to_id b =
       end
   with Not_found -> raise (Bad_Answer "Champ id manquant dans la réponse")
       
+
+
+(* bencoded_to_asnwer : bencoded -> answer *)
+let bencoded_to_PingAnswer b= 
+  let (a, dic) = bencoded_to_idAndDic b in
+  if (List.length dic != 1) 
+  then raise (Bad_Answer "Longueur du champ r invalide")
+  else let num = bencoded_to_id b in  {ap_t = a; ap_id = num}
+;;
+
+
+let decoupe_nodes s = 
+  (String.sub s 0 20)::(String.sub s 20 20)::(String.sub s 40 20)::(String.sub s 60 20)::(String.sub s 80 20)::(String.sub s 100 20)::(String.sub s 120 20)::(String.sub s 140 20)::[]
+;;
+      
+      
+let bencoded_to_Find_NodesAnswer b= 
+  let (a, dic) = bencoded_to_idAndDic b in
+  if (List.length dic != 2) 
+  then raise (Bad_Answer "Longueur du champ r invalide")
+  else 
+      let num = bencoded_to_id b in 
+      try
+	let nodes = (List.assoc "nodes" dic) in 
+	begin
+	  match nodes with
+	  |BString id_nodes -> {afn_t = a; afn_id = num; afn_nodes = (decoupe_nodes id_nodes)}
+	  |BDic _ ->  raise (Bad_Answer "Contenu du champ nodes invalide")
+	end
+      with Not_found -> raise (Bad_Answer "Champ nodes manquant dans la réponse")
+;;
+
