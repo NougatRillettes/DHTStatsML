@@ -194,16 +194,16 @@ let bencoded_to_Find_NodesAnswer b=
       with Not_found -> raise (Bad_Answer "Champ nodes manquant dans la réponse")
 ;;
 
-let bytes_to_string = String.create
+let bytes_to_string = Bytes.create;;
 
-let envoie_requetePing serv_addr=  ()
-(* ca devrait etre à peu près bon mais il connait ni Bytes ni sendto_substring du coup ça marche po :(
+let envoie_requetePing serv_addr =
   let s = socket PF_INET SOCK_DGRAM 0 in
   let bencodedPingQuery=(bencodeQuery (QPing {qp_t = "aa"; qp_id="abcdefghij0123456789"})) in
-  Unix.sendto_substring s bencodedPingQuery 0 1500 [] serv_addr (*changer les valeurs 0 et 1500!!*)
+  ignore @@ Unix.sendto_substring s bencodedPingQuery 0 (String.length bencodedPingQuery) [] serv_addr; (*changer les valeurs 0 et 1500!!*)
   let buffer_reponse = Bytes.create 1500 in
-  recvfrom s buffer_reponse 0 1500 ;
-  parser (bytes_to_string (buffer_reponse)) *)
+  ignore @@ recvfrom s buffer_reponse 0 1500 [];
+  parser (Bytes.to_string (buffer_reponse))
 
 ;;
 
+let addrBootstrap = ADDR_INET(inet_addr_of_string "67.215.246.10", 6881);;
