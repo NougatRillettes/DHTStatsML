@@ -122,7 +122,6 @@ let bencoded_to_idAndDic b =
   |BString _-> raise (Bad_Answer "La réponse n'est pas un BDic")
   |BDic l -> 
     begin
-      if (List.length l != 3) then raise (Bad_Answer "Reponse de longueur incorrecte");
       try 
 	let y = List.assoc "y" l in
 	begin
@@ -194,16 +193,25 @@ let bencoded_to_Find_NodesAnswer b=
       with Not_found -> raise (Bad_Answer "Champ nodes manquant dans la réponse")
 ;;
 
-let bytes_to_string = Bytes.create;;
 
 let envoie_requetePing serv_addr =
   let s = socket PF_INET SOCK_DGRAM 0 in
   let bencodedPingQuery=(bencodeQuery (QPing {qp_t = "aa"; qp_id="abcdefghij0123456789"})) in
-  ignore @@ Unix.sendto_substring s bencodedPingQuery 0 (String.length bencodedPingQuery) [] serv_addr; (*changer les valeurs 0 et 1500!!*)
-  let buffer_reponse = Bytes.create 1500 in
+  ignore @@ sendto s bencodedPingQuery 0 (String.length bencodedPingQuery) [] serv_addr; 
+  let buffer_reponse = String.create 1500 in
   ignore @@ recvfrom s buffer_reponse 0 1500 [];
-  parser (Bytes.to_string (buffer_reponse))
-
+  parser buffer_reponse
 ;;
+
+
+let envoie_requeteFind_nodes serv_addr target=
+  let s = socket PF_INET SOCK_DGRAM 0 in
+  let bencodedFind_nodesQuery=(bencodeQuery (QFindNode {qfn_t = "aa"; qfn_id="abcdefghij0123456789"; qfn_target = target})) in
+  ignore @@ sendto s bencodedFind_nodesQuery 0 (String.length bencodedFind_nodesQuery) [] serv_addr; 
+  let buffer_reponse = String.create 1500 in
+  ignore @@ recvfrom s buffer_reponse 0 1500 [];
+  parser buffer_reponse
+;;
+
 
 let addrBootstrap = ADDR_INET(inet_addr_of_string "67.215.246.10", 6881);;
