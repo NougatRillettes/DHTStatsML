@@ -194,24 +194,75 @@ let bencoded_to_Find_NodesAnswer b=
 ;;
 
 
-let envoie_requetePing serv_addr =
+let envoie_requetePing requetePing serv_addr =
   let s = socket PF_INET SOCK_DGRAM 0 in
-  let bencodedPingQuery=(bencodeQuery (QPing {qp_t = "aa"; qp_id="abcdefghij0123456789"})) in
+  let bencodedPingQuery=bencodeQuery ( requetePing ) in                     (*QPing {qp_t = "aa"; qp_id="abcdefghij0123456789"})) in*)
   ignore @@ sendto s bencodedPingQuery 0 (String.length bencodedPingQuery) [] serv_addr; 
   let buffer_reponse = String.create 1500 in
   ignore @@ recvfrom s buffer_reponse 0 1500 [];
-  parser buffer_reponse
+  bencoded_to_id (parser buffer_reponse)
 ;;
 
 
-let envoie_requeteFind_nodes serv_addr target=
+let envoie_requeteFind_nodes requeteFind_Nodes serv_addr=
   let s = socket PF_INET SOCK_DGRAM 0 in
-  let bencodedFind_nodesQuery=(bencodeQuery (QFindNode {qfn_t = "aa"; qfn_id="abcdefghij0123456789"; qfn_target = target})) in
+  let bencodedFind_nodesQuery=bencodeQuery ( requeteFind_Nodes ) in    (*QFindNode {qfn_t = "aa"; qfn_id="abcdefghij0123456789"; qfn_target = target})) in*)
   ignore @@ sendto s bencodedFind_nodesQuery 0 (String.length bencodedFind_nodesQuery) [] serv_addr; 
   let buffer_reponse = String.create 1500 in
   ignore @@ recvfrom s buffer_reponse 0 1500 [];
-  parser buffer_reponse
+  bencoded_to_Find_NodesAnswer (parser buffer_reponse)
 ;;
 
 
+
 let addrBootstrap = ADDR_INET(inet_addr_of_string "67.215.246.10", 6881);;
+
+
+let int_to_trans_num i = "aa" ;; (*d'un entier vers un string de transaction number*)
+let generateTargetNode () = "abcdefghij0123456789" ;;(*trouver un noeud à chercher, en maintenant une liste de noeuds déjà trouvés?*)
+
+
+let targetNode = ref "abcdefghij0123456789";;
+let trans_num = ref 1 ;;
+let myID = "jihgfedbca9876543210";;
+
+
+let rec trouve_noeud requestsToSend =
+(*on démarre cette fonction avec requestsToSend ayant un seul élément, un QFindNode vers un certain noeud en cherchant un certain targetNode.
+Cette fonction s'arrete lorsque le targetNode a été trouvé.*) 
+    match (List.hd requestsToSend) with
+    |(QPing x, serv_addr) -> ignore(envoie_requetePing (QPing x) serv_addr)
+    |(QFindNode x, serv_addr) -> 
+      begin
+	let answer = envoie_requeteFind_nodes (QFindNode x) serv_addr in
+	if ((*on nous renvoie l'addresse ip du targetNode*) false) 
+	then  (*alors on le ping*)
+	  begin 
+	    incr trans_num; 
+	    trouve_noeud ((QPing{qp_t = (int_to_trans_num trans_num); qp_id= !targetNode} , (*normalement nv_serv_addr*) serv_addr)::(List.tl requestsToSend))
+	  end
+	else if ((*on nous renvoie l'addresse ip d'un noeud plus proche*) false)
+	then (*on lui demande où est targetNode*)
+	  begin
+	    incr trans_num; 
+	    trouve_noeud ((QFindNode {qfn_t = (int_to_trans_num trans_num) ; qfn_id=myID; qfn_target = !targetNode},  (*normalement nv_serv_addr*) serv_addr)::(List.tl requestsToSend))
+	  end
+	else (*on nous renvoie les ids d'autres noeuds plus proches*)
+	  begin
+	    let nvellesreqs = List.map 
+	      (fun x ->  incr trans_num ; (QFindNode {qfn_t = (int_to_trans_num trans_num) ; qfn_id=myID; qfn_target =x}, serv_addr)) answer.afn_nodes in
+	     trouve_noeud (nvellesreqs@(List.tl requestsToSend)) (*est-ce qu'il vaut mieux faire d'abord les novuelles requetes ou celles d'avant?*)
+	  end
+      end
+;;
+
+
+let main = 
+    while (true) 
+    do
+      targetNode := generateTargetNode () ;
+      trans_num := 1 ; 
+      let requestsToSend = (QFindNode {qfn_t = (int_to_trans_num 0); qfn_id="abcdefghij0123456789"; qfn_target = !targetNode}, addrBootstrap)::[] 
+      in (trouve_noeud requestsToSend)
+    done
+;;
