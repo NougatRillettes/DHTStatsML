@@ -240,29 +240,30 @@ let myID = "jihgfedbca9876543210";;
 
 let rec trouve_noeud requestsToSend =
 (*on démarre cette fonction avec requestsToSend ayant un seul élément, un QFindNode vers un certain noeud en cherchant un certain targetNode.
-Cette fonction s'arrete lorsque le targetNode a été trouvé.*) 
-    match (List.hd requestsToSend) with
-    |(QPing x, serv_addr) -> ignore(envoie_requetePing (QPing x) serv_addr)
-    |(QFindNode x, serv_addr) -> 
+Cette fonction s'arrete lorsque toutes les requetes ont été effectuées.*) 
+    match requestsToSend with
+    |[] -> ()
+    |(QPing x, serv_addr)::requestsToSend' -> begin ignore(envoie_requetePing (QPing x) serv_addr); trouve_noeud requestsToSend' end
+    |(QFindNode x, serv_addr)::requestsToSend' -> 
       begin
 	let answer = envoie_requeteFind_nodes (QFindNode x) serv_addr in
 	if ((*on nous renvoie l'addresse ip du targetNode*) false) 
 	then  (*alors on le ping*)
 	  begin 
 	    incr trans_num; 
-	    trouve_noeud ((QPing{qp_t = (int_to_trans_num trans_num); qp_id= !targetNode} , (*normalement nv_serv_addr*) serv_addr)::(List.tl requestsToSend))
+	    trouve_noeud ((QPing{qp_t = (int_to_trans_num trans_num); qp_id= !targetNode} , (*normalement nv_serv_addr*) serv_addr)::(requestsToSend'))
 	  end
 	else if ((*on nous renvoie l'addresse ip d'un noeud plus proche*) false)
 	then (*on lui demande où est targetNode*)
 	  begin
 	    incr trans_num; 
-	    trouve_noeud ((QFindNode {qfn_t = (int_to_trans_num trans_num) ; qfn_id=myID; qfn_target = !targetNode},  (*normalement nv_serv_addr*) serv_addr)::(List.tl requestsToSend))
+	    trouve_noeud ((QFindNode {qfn_t = (int_to_trans_num trans_num) ; qfn_id=myID; qfn_target = !targetNode},  (*normalement nv_serv_addr*) serv_addr)::requestsToSend')
 	  end
 	else (*on nous renvoie les ids d'autres noeuds plus proches*)
 	  begin
 	    let nvellesreqs = List.map 
 	      (fun x ->  incr trans_num ; (QFindNode {qfn_t = (int_to_trans_num trans_num) ; qfn_id=myID; qfn_target =x}, serv_addr)) answer.afn_nodes in
-	     trouve_noeud (nvellesreqs@(List.tl requestsToSend)) (*est-ce qu'il vaut mieux faire d'abord les novuelles requetes ou celles d'avant?*)
+	     trouve_noeud (nvellesreqs@requestsToSend') (*est-ce qu'il vaut mieux faire d'abord les novuelles requetes ou celles d'avant?*)
 	  end
       end
 ;;
