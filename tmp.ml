@@ -217,8 +217,19 @@ let envoie_requeteFind_nodes requeteFind_Nodes serv_addr=
 
 let addrBootstrap = ADDR_INET(inet_addr_of_string "67.215.246.10", 6881);;
 
+let rec euclidean_rest n m = if (n<m) then n else (euclidean_rest (n-m) m)
 
-let int_to_trans_num i = "aa" ;; (*d'un entier vers un string de transaction number*)
+
+
+let int_to_trans_num i = 
+(*d'un entier vers un string de transaction number*)
+  let res = "aa" in 
+  res.[0] <- (Char.chr ((!i-(euclidean_rest !i 256))/256));
+  res.[1] <- (Char.chr (euclidean_rest !i 256));
+  res
+;; 
+
+
 let generateTargetNode () = "abcdefghij0123456789" ;;(*trouver un noeud à chercher, en maintenant une liste de noeuds déjà trouvés?*)
 
 
@@ -262,7 +273,7 @@ let main =
     do
       targetNode := generateTargetNode () ;
       trans_num := 1 ; 
-      let requestsToSend = (QFindNode {qfn_t = (int_to_trans_num 0); qfn_id="abcdefghij0123456789"; qfn_target = !targetNode}, addrBootstrap)::[] 
-      in (trouve_noeud requestsToSend)
+      let requestsToSend = (QFindNode {qfn_t = (int_to_trans_num trans_num); qfn_id="abcdefghij0123456789"; qfn_target = !targetNode}, addrBootstrap)::[] 
+      in incr trans_num; (trouve_noeud requestsToSend)
     done
 ;;
