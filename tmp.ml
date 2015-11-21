@@ -198,3 +198,12 @@ and send_requests requetes socket=
   receive_requests requetes socket
 ;;
     
+
+let main () =
+  let requetes = FIFO.make 1000 in
+  let s = socket PF_INET SOCK_DGRAM 0 in
+  let premiere_target = random_id () in 
+  let premiere_requete = bencodeQuery (QFindNode {qfn_t = "aa"; qfn_want = 1; qfn_id="12345678901234567890"; qfn_target = premiere_target}) in
+  FIFO.push (premiere_requete, addrBootstrap) requetes;
+  send_requests requetes s
+;;
