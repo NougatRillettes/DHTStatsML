@@ -217,8 +217,8 @@ type interm = No | Interm of int;;
 
 type trans_id_info =
   {
-    time : int; 
-    find_node : boolean;
+    time : float; 
+    find_node : bool;
     interm : interm;
 }
 
@@ -227,14 +227,15 @@ type trans_id_info_case = None | Some of trans_id_info
 let currentTrans = Array.init 65537 (fun n -> None);;
 let index = ref 0;;
 
-let rec choose_trans_num = 
+let rec choose_trans_num () = 
 if (!index==65536) then index := 1 else index := !index+1;
-if (currentTrans.[!index] == None) 
-then !index
-else if (Unix.time() > currentTrans.[!index] +3) 
-  then begin currentTrans.[!index] <- None; !index end
-else choose_trans_num
-
+match (currentTrans.(!index)) with
+| None -> !index
+| Some info ->  begin 
+  if (Unix.time() > (info.time +. 3.)) 
+  then begin currentTrans.(!index) <- None; !index end
+  else choose_trans_num ()
+end
 
 
 let addrBootstrap = ADDR_INET(inet_addr_of_string "67.215.246.10", 6881);;
@@ -255,6 +256,12 @@ let generateTargetNode () = "abcdefghij0123456789" ;;(*trouver un noeud à cherc
 let targetNode = ref "abcdefghij0123456789";;
 let trans_num = ref 1 ;;
 let myID = "jihgfedbca9876543210";;
+
+let envoie_requetes requestsToSend =    
+  match requestsToSend with
+  |[] -> ()
+  |(QPing x, serv_addr)::requestsToSend' -> ignore(envoie_requetePing (QPing x) serv_addr) (*supprimer les ignore*)
+  |(QFindNode x, serv_addr)::requestsToSend' -> ignore(envoie_requeteFind_nodes (QFindNode x) serv_addr) (*supprimer les ignore*)
 
 
 let rec trouve_noeud requestsToSend =
