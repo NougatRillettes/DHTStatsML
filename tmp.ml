@@ -127,14 +127,18 @@ let testlol id want =
 ;;
 
 let get_id s = String.sub s 0 20;;
-let get_ip s = String.sub s 20 4;;
+let get_ip s =
+  let aux n = string_of_int (Char.code (s.[20+n])) in
+  (String.concat "." (List.map aux [1;2;3;4]) : string)
+;;
+
 let get_port s = 
   let port = String.sub s 24 2 in
   (Char.code (port.[0]))*256 + (Char.code (port.[1]))
 ;;
 
 
-let rec parcoure infonoeud = 
+let rec parcoure infonoeud = (* infonoeud : compact node info *)
 (*envoie un find_node sur un noeud aléatoire au noeud donné en argument, prend le premier noeud renvoyé et appelle récursiment*)
   let id_noeud = get_id infonoeud in 
   let random_node = ref (random_id()) in 
