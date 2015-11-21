@@ -150,18 +150,42 @@ let rec parcoure infonoeud = (* infonoeud : compact node info *)
   parcoure (List.hd answer.afn_nodes)
 
 
-let main =
-  let i  = ref 0 in
-  let ens = ref (IDSet.empty) in
-  while (true) do
-    let id_to_check = random_id () in 
-    let answer = envoie_requeteFind_nodes (QFindNode {qfn_t = "aa"; qfn_want = 1; qfn_id="12345678901234567890"; qfn_target = id_to_check}) addrBootstrap in
-    if (List.length answer.afn_nodes >= 2) 
-    then ens := (List.fold_left (fun set x->IDSet.add x set) !ens answer.afn_nodes);
-    Printf.printf "Taille de la table découverte: %i a la %dieme requete" (IDSet.cardinal !ens) !i;
-    incr i;
-    print_endline "";
-  done ;
+(* let main = *)
+(*   let i  = ref 0 in *)
+(*   let ens = ref (IDSet.empty) in *)
+(*   while (true) do *)
+(*     let id_to_check = random_id () in  *)
+(*     let answer = envoie_requeteFind_nodes (QFindNode {qfn_t = "aa"; qfn_want = 1; qfn_id="12345678901234567890"; qfn_target = id_to_check}) addrBootstrap in *)
+(*     if (List.length answer.afn_nodes >= 2)  *)
+(*     then ens := (List.fold_left (fun set x->IDSet.add x set) !ens answer.afn_nodes); *)
+(*     Printf.printf "Taille de la table découverte: %i a la %dieme requete" (IDSet.cardinal !ens) !i; *)
+(*     incr i; *)
+(*     print_endline ""; *)
+(*   done ; *)
+(* ;; *)
+
+let rec parcoure infonoeud = 
+(*envoie un find_node sur un noeud aléatoire au noeud donné en argument, prend le premier noeud renvoyé et appelle récursiment*)
+  let random_node = ref (random_id()) in 
+  let answer = envoie_requeteFind_nodes (QFindNode {qfn_t = (int_to_trans_num (choose_trans_num ())); qfn_want = 1; qfn_id=random_id (); qfn_target =(!random_node)}) infonoeud in
+  let premier_noeud = List.hd (answer.afn_nodes) in
+  let id_noeud = get_id premier_noeud in 
+  let ip_noeud = get_ip premier_noeud in
+  let port_noeud = get_port premier_noeud in
+  let servaddr = ADDR_INET(inet_addr_of_string ip_noeud, port_noeud) in 
+  Printf.printf "on envoie une requete au noeud d'id %s \n" id_noeud;
+  print_endline "";
+  parcoure servaddr
 ;;
 
 
+
+let main = 
+  let compteur = ref 0 in
+  while (true) do
+    incr compteur;
+    Printf.printf "nouveau départ! c'est le %i ème\n" !compteur;
+    print_endline "";
+    parcoure addrBootstrap
+  done
+;;
