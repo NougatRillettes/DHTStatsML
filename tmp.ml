@@ -35,8 +35,8 @@ let addrBootstrap = ADDR_INET(inet_addr_of_string "82.221.103.244", 6881);;
 let int_to_trans_num i = 
 (*d'un entier vers un string de transaction number*)
   let res = "aa" in 
-  res.[0] <- (Char.chr ((!i-(!i mod 256))/256));
-  res.[1] <- (Char.chr (!i mod 256));
+  res.[0] <- (Char.chr ((i-(i mod 256))/256));
+  res.[1] <- (Char.chr (i mod 256));
   res
 ;; 
 
@@ -125,6 +125,25 @@ let testlol id want =
   close s;
   parser buffer_reponse;
 ;;
+
+let get_id s = String.sub s 0 20;;
+let get_ip s = String.sub s 20 4;;
+let get_port s = 
+  let port = String.sub s 24 2 in
+  (Char.code (port.[0]))*256 + (Char.code (port.[1]))
+;;
+
+
+let rec parcoure infonoeud = 
+(*envoie un find_node sur un noeud aléatoire au noeud donné en argument, prend le premier noeud renvoyé et appelle récursiment*)
+  let id_noeud = get_id infonoeud in 
+  let random_node = ref (random_id()) in 
+  while (!random_node == id_noeud) do random_node := random_id () done;
+  let ip_noeud = get_ip infonoeud in
+  let port_noeud = get_port infonoeud in
+  let servaddr = ADDR_INET(inet_addr_of_string ip_noeud, port_noeud) in 
+  let answer = envoie_requeteFind_nodes (QFindNode {qfn_t = (int_to_trans_num (choose_trans_num ())); qfn_want = 1; qfn_id="12345678901234567890"; qfn_target =(!random_node)}) servaddr in
+  parcoure (List.hd answer.afn_nodes)
 
 
 let main =
