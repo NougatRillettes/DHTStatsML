@@ -48,12 +48,6 @@ let targetNode = ref "abcdefghij0123456789";;
 let trans_num = ref 1 ;;
 let myID = "jihgfedbca9876543210";;
 
-let envoie_requetes requestsToSend =    
-  match requestsToSend with
-  |[] -> ()
-  |(QPing x, serv_addr)::requestsToSend' -> ignore(envoie_requetePing (QPing x) serv_addr) (*supprimer les ignore*)
-  |(QFindNode x, serv_addr)::requestsToSend' -> ignore(envoie_requeteFind_nodes (QFindNode x) serv_addr) (*supprimer les ignore*)
-
 
 (* let rec trouve_noeud requestsToSend = *)
 (* (\*on démarre cette fonction avec requestsToSend ayant un seul élément, un QFindNode vers un certain noeud en cherchant un certain targetNode. *)
@@ -152,21 +146,23 @@ let get_port s =
 (*     print_endline ""; *)
 (*   done ; *)
 (* ;; *)
-
+(*
 let rec parcoure infonoeud = 
 (*envoie un find_node sur un noeud aléatoire au noeud donné en argument, prend le premier noeud renvoyé et appelle récursiment*)
   let random_node = ref (random_id()) in 
-  let answer = envoie_requeteFind_nodes (QFindNode {qfn_t = (int_to_trans_num (choose_trans_num ())); qfn_want = 1; qfn_id=random_id (); qfn_target =(!random_node)}) infonoeud in
-  let premier_noeud = List.hd (answer.afn_nodes) in
-  let id_noeud = get_id premier_noeud in 
-  let ip_noeud = get_ip premier_noeud in
-  let port_noeud = get_port premier_noeud in
-  let servaddr = ADDR_INET(inet_addr_of_string ip_noeud, port_noeud) in 
-  Printf.printf "on envoie une requete au noeud d'id %S et d'ip %S\n" id_noeud ip_noeud;
-  print_endline "";
-  parcoure servaddr
+  sendRequest (QFindNode {qfn_t = (int_to_trans_num (choose_trans_num ())); qfn_want = 1; qfn_id=random_id (); qfn_target =(!random_node)}) infonoeud ;
+  try 
+    let answer = receive_answer () in
+    let premier_noeud = List.hd (answer.afn_nodes) in
+    let id_noeud = get_id premier_noeud in 
+    let ip_noeud = get_ip premier_noeud in
+    let port_noeud = get_port premier_noeud in
+    let servaddr = ADDR_INET(inet_addr_of_string ip_noeud, port_noeud) in 
+    Printf.printf "on envoie une requete au noeud d'id %S et d'ip %S\n" id_noeud ip_noeud;
+    print_endline "";
+    parcoure servaddr
+      
 ;;
-
 
 
 let main = 
@@ -178,3 +174,27 @@ let main =
     parcoure addrBootstrap
   done
 ;;
+*)
+
+    
+let traite_requete socket = () ;;
+
+let rec receive_requests requetes socket= 
+  let (f1, f2, f3) = select [socket] [] [] 0. in
+  begin
+    match f1 with
+    |[] -> send_requests requetes socket
+    |[socket] -> begin traite_requete socket; receive_requests requetes socket end
+    |_ -> begin Printf.printf "erreur interne!\n"; send_requests requetes socket end
+  end 
+
+and send_requests requetes socket= 
+  let compteur = ref 0 in
+  while (not(FIFO.empty requetes) && !compteur < 10) do 
+    let (bencoded, serv_addr) = FIFO.pop requetes in
+    sendto socket bencoded 0 (String.length bencoded) [] serv_addr;
+    incr compteur
+  done;
+  receive_requests requetes socket
+;;
+    
