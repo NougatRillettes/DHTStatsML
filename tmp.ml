@@ -129,7 +129,7 @@ let testlol id want =
 let get_id s = String.sub s 0 20;;
 let get_ip s =
   let aux n = string_of_int (Char.code (s.[20+n])) in
-  (String.concat "." (List.map aux [1;2;3;4]) : string)
+  (String.concat "." (List.map aux [0;1;2;3]) : string)
 ;;
 
 let get_port s = 
@@ -137,17 +137,6 @@ let get_port s =
   (Char.code (port.[0]))*256 + (Char.code (port.[1]))
 ;;
 
-
-let rec parcoure infonoeud = (* infonoeud : compact node info *)
-(*envoie un find_node sur un noeud aléatoire au noeud donné en argument, prend le premier noeud renvoyé et appelle récursiment*)
-  let id_noeud = get_id infonoeud in 
-  let random_node = ref (random_id()) in 
-  while (!random_node == id_noeud) do random_node := random_id () done;
-  let ip_noeud = get_ip infonoeud in
-  let port_noeud = get_port infonoeud in
-  let servaddr = ADDR_INET(inet_addr_of_string ip_noeud, port_noeud) in 
-  let answer = envoie_requeteFind_nodes (QFindNode {qfn_t = (int_to_trans_num (choose_trans_num ())); qfn_want = 1; qfn_id="12345678901234567890"; qfn_target =(!random_node)}) servaddr in
-  parcoure (List.hd answer.afn_nodes)
 
 
 (* let main = *)
@@ -173,7 +162,7 @@ let rec parcoure infonoeud =
   let ip_noeud = get_ip premier_noeud in
   let port_noeud = get_port premier_noeud in
   let servaddr = ADDR_INET(inet_addr_of_string ip_noeud, port_noeud) in 
-  Printf.printf "on envoie une requete au noeud d'id %s \n" id_noeud;
+  Printf.printf "on envoie une requete au noeud d'id %S et d'ip %S\n" id_noeud ip_noeud;
   print_endline "";
   parcoure servaddr
 ;;
