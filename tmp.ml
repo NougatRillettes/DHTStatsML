@@ -200,6 +200,7 @@ let envoie_requetePing requetePing serv_addr =
   ignore @@ sendto s bencodedPingQuery 0 (String.length bencodedPingQuery) [] serv_addr; 
   let buffer_reponse = String.create 1500 in
   ignore @@ recvfrom s buffer_reponse 0 1500 [];
+  close s;
   bencoded_to_id (parser buffer_reponse)
 ;;
 
@@ -210,6 +211,7 @@ let envoie_requeteFind_nodes requeteFind_Nodes serv_addr=
   ignore @@ sendto s bencodedFind_nodesQuery 0 (String.length bencodedFind_nodesQuery) [] serv_addr; 
   let buffer_reponse = String.create 1500 in
   ignore @@ recvfrom s buffer_reponse 0 1500 [];
+  close s;
   bencoded_to_Find_NodesAnswer (parser buffer_reponse)
 ;;
 
@@ -238,7 +240,7 @@ match (currentTrans.(!index)) with
 end
 
 
-let addrBootstrap = ADDR_INET(inet_addr_of_string "67.215.246.10", 6881);;
+let addrBootstrap = ADDR_INET(inet_addr_of_string "82.221.103.244", 6881);;
 
 
 let int_to_trans_num i = 
@@ -294,13 +296,50 @@ Cette fonction s'arrete lorsque toutes les requetes ont été effectuées.*)
       end
 ;;
 
+(* let receiver sck queue stats () = *)
+(*   let n = ref 0 in (\*number of packet handled, for debugging purposes*\) *)
+(*   let sizeBuffer = 1500 in *)
+(*   ignore @@ select [sck] [] [] (-1.0); *)
+(*   let buffer_reponse = String.create 1500 in *)
+(*   if (recvfrom sck buffer_reponse 0 sizeBuffer [] > sizeBuffer) then *)
+(*     Printf.fprintf stderr "[%d] Buffer size was too small in receiver!\n"; *)
+  
+(* ;; *)
+  
 
-let main = 
-    while (true) 
-    do
-      targetNode := generateTargetNode () ;
-      trans_num := 1 ; 
-      let requestsToSend = (QFindNode {qfn_t = (int_to_trans_num trans_num); qfn_id="abcdefghij0123456789"; qfn_target = !targetNode}, addrBootstrap)::[] 
-      in incr trans_num; (trouve_noeud requestsToSend)
-    done
+
+module IDSet = Set.Make(String) ;;
+
+let random_id () =
+  let fd = open_in "/dev/urandom" in
+  let buf = String.make 20 '0' in
+  input fd buf 0 20;
+  close_in fd;
+  buf
 ;;
+
+let testlol requeteFind_Nodes serv_addr=
+  let s = socket PF_INET SOCK_DGRAM 0 in
+  let bencodedFind_nodesQuery=bencodeQuery ( requeteFind_Nodes ) in    (*QFindNode {qfn_t = "aa"; qfn_id="abcdefghij0123456789"; qfn_target = target})) in*)
+  ignore @@ sendto s bencodedFind_nodesQuery 0 (String.length bencodedFind_nodesQuery) [] serv_addr; 
+  let buffer_reponse = String.create 1500 in
+  ignore @@ recvfrom s buffer_reponse 0 1500 [];
+  close s;
+  parser buffer_reponse;
+;;
+
+let main =
+  let i  = ref 0 in
+  let ens = ref (IDSet.empty) in
+  while (true) do
+    let id_to_check = random_id () in 
+    let answer = envoie_requeteFind_nodes (QFindNode {qfn_t = "aa"; qfn_id="12345678901234567890"; qfn_target = id_to_check}) addrBootstrap in
+    if (List.length answer.afn_nodes >= 2) 
+    then ens := (List.fold_left (fun set x->IDSet.add x set) !ens answer.afn_nodes);
+    Printf.printf "Taille de la table découverte: %i a la %dieme requete" (IDSet.cardinal !ens) !i;
+    incr i;
+    print_endline "";
+  done ;
+;;
+
+
