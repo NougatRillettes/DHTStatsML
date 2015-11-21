@@ -213,19 +213,38 @@ let envoie_requeteFind_nodes requeteFind_Nodes serv_addr=
   bencoded_to_Find_NodesAnswer (parser buffer_reponse)
 ;;
 
+type interm = No | Interm of int;;
+
+type trans_id_info =
+  {
+    time : int; 
+    find_node : boolean;
+    interm : interm;
+}
+
+type trans_id_info_case = None | Some of trans_id_info
+
+let currentTrans = Array.init 65537 (fun n -> None);;
+let index = ref 0;;
+
+let rec choose_trans_num = 
+if (!index==65536) then index := 1 else index := !index+1;
+if (currentTrans.[!index] == None) 
+then !index
+else if (Unix.time() > currentTrans.[!index] +3) 
+  then begin currentTrans.[!index] <- None; !index end
+else choose_trans_num
+
 
 
 let addrBootstrap = ADDR_INET(inet_addr_of_string "67.215.246.10", 6881);;
-
-let rec euclidean_rest n m = if (n<m) then n else (euclidean_rest (n-m) m)
-
 
 
 let int_to_trans_num i = 
 (*d'un entier vers un string de transaction number*)
   let res = "aa" in 
-  res.[0] <- (Char.chr ((!i-(euclidean_rest !i 256))/256));
-  res.[1] <- (Char.chr (euclidean_rest !i 256));
+  res.[0] <- (Char.chr ((!i-(!i mod 256))/256));
+  res.[1] <- (Char.chr (!i mod 256));
   res
 ;; 
 
