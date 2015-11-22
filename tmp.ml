@@ -109,15 +109,6 @@ let reverseString s =
   s'
 ;;
 
-let testlol id want =
-  let s = socket PF_INET SOCK_DGRAM 0 in
-  let bencodedFind_nodesQuery= bencodeQuery (QFindNode {qfn_t = "aa"; qfn_id="abcdefghij0123456789"; qfn_target = id; qfn_want = want} ) in
-  ignore (sendto s bencodedFind_nodesQuery 0 (String.length bencodedFind_nodesQuery) [] addrBootstrap); 
-  let buffer_reponse = String.create 1500 in
-  ignore ( recvfrom s buffer_reponse 0 1500 []);
-  close s;
-  parser buffer_reponse;
-;;
 
 let get_id s = String.sub s 0 20;;
 let get_ip s =
@@ -178,6 +169,15 @@ let handleReadySocket sck fifo =
     |  Not_found ->  Printf.printf "Erreur interne\n";
 ;;
 
+let rec envoie socket bencoded serv_addr = 
+  try 
+    sendto socket bencoded 0 (String.length bencoded) [] serv_addr
+  with
+  |Unix_error(ENOBUFS, _, _) -> begin
+    Printf.printf "manque de buffer! on réessaie\n";
+    sleep(1);
+    envoie socket bencoded serv_addr
+  end
 
 let rec receive_requests requetes socket= 
   let (f1, f2, f3) = select [socket] [] [] 0.1 in
@@ -206,12 +206,12 @@ and send_requests requetes socket=
       try 
         if (not(!((NodeInfoMap.find id_node !ens).unanswered_requests) > 2000)) 
         then begin
-	  sendto socket bencoded 0 (String.length bencoded) [] serv_addr;
+	  envoie socket bencoded serv_addr;
 	  incr (NodeInfoMap.find id_node !ens).unanswered_requests;
         end
       with Not_found -> 
         begin
-	  sendto socket bencoded 0 (String.length bencoded) [] serv_addr;
+	  envoie socket bencoded serv_addr;
 	  let i = ref 1 in
 	  ens := NodeInfoMap.add id_node {unanswered_requests = i} !ens;
         end;
