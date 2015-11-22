@@ -32,6 +32,8 @@ type bencoded = BDic of (string * bencoded) list | BString of string
 
 val parser : string -> bencoded
 
+exception Bad_Answer of string;;
+
 val bencoded_to_idAndDic : bencoded -> string * (string * bencoded) list
 val bencoded_to_id : bencoded -> string
 val bencoded_to_PingAnswer : bencoded -> aPing
