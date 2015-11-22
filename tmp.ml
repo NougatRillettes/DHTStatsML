@@ -91,7 +91,6 @@ let myID = "jihgfedbca9876543210";;
   
 
 
-module IDSet = Set.Make(String) ;;
 
 let random_id () =
   let fd = open_in "/dev/urandom" in
@@ -131,6 +130,14 @@ let get_port s =
   (Char.code (port.[0]))*256 + (Char.code (port.[1]))
 ;;
 
+type node_info = 
+  {
+    unanswered_requests : int ref;
+}
+
+module NodeInfoMap = Map.Make(String) ;;
+let ens = NodeInfoMap.empty;;
+
 let addReqFifo id addr fifo =
    let query =
       bencodeQFindNode {
@@ -140,7 +147,7 @@ let addReqFifo id addr fifo =
         qfn_want = 1;
       }
    in
-   FIFO.push (query,addr) fifo;
+   FIFO.push (query,addr,id) fifo;
 ;;
 
 let handleReadySocket sck fifo =
@@ -148,6 +155,10 @@ let handleReadySocket sck fifo =
   ignore (recvfrom sck readBuf 0 1500 []);
   try 
     let answ = bencoded_to_Find_NodesAnswer (parser readBuf) in
+    try 
+    (NodeInfoMap.find answ.afn_id ens).unanswered_requests := 0
+    with 
+    | Not_found -> Printf.printf "Erreur interne\n";
     let genAddr s =
       let ip = get_ip s in
       let port = get_port s in
@@ -155,11 +166,12 @@ let handleReadySocket sck fifo =
     in
     List.iter (fun s -> addReqFifo (get_id s) (genAddr s) fifo) answ.afn_nodes
   with
-    | (Bad_Answer _) -> ();
+    | (Bad_Answer _) -> ()
 ;;
 
 
 let rec receive_requests requetes socket= 
+  Printf.printf "Nous avons un set qui a une taille de %i\n" (NodeInfoMap.cardinal ens); 
   let (f1, f2, f3) = select [socket] [] [] 0.1 in
   begin
     match f1 with
@@ -170,14 +182,25 @@ let rec receive_requests requetes socket=
     
 and send_requests requetes socket= 
   let compteur = ref 0 in
-  if FIFO.empty requetes then 
+  if (FIFO.empty requetes) then 
     for i=0 to 100 do
-      addReqFifo (random_id ()) requetes
+      addReqFifo (random_id ()) addrBootstrap requetes
     done;
   while (not(FIFO.empty requetes) && !compteur < 100) do 
-    let (bencoded, serv_addr) = FIFO.pop requetes in
-    sendto socket bencoded 0 (String.length bencoded) [] serv_addr;
-    incr compteur
+    let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
+    try 
+      if (not(!((NodeInfoMap.find id_node ens).unanswered_requests) > 20)) 
+      then begin
+	sendto socket bencoded 0 (String.length bencoded) [] serv_addr;
+	incr (NodeInfoMap.find id_node ens).unanswered_requests;
+      end
+    with Not_found -> 
+      begin
+	sendto socket bencoded 0 (String.length bencoded) [] serv_addr;
+	let i = ref 1 in
+	NodeInfoMap.add id_node {unanswered_requests = i} ens;
+      end;
+      incr compteur
   done;
   receive_requests requetes socket
 ;;
@@ -186,8 +209,5 @@ and send_requests requetes socket=
 let main =
   let requetes = FIFO.make 1000 in
   let s = socket PF_INET SOCK_DGRAM 0 in
-  let premiere_target = random_id () in 
-  let premiere_requete = bencodeQuery (QFindNode {qfn_t = "aa"; qfn_want = 1; qfn_id="12345678901234567890"; qfn_target = premiere_target}) in
-  FIFO.push (premiere_requete, addrBootstrap) requetes;
   send_requests requetes s
 ;;
