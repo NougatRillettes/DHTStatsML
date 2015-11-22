@@ -79,6 +79,7 @@ let get_port s =
 type node_info = 
   {
     unanswered_requests : int ref;
+    version_used : string ref;
 }
 
 module NodeInfoMap = Map.Make(String) ;;
@@ -103,9 +104,12 @@ let handleReadySocket sck fifo =
     let answ = bencoded_to_Find_NodesAnswer (parser readBuf) in
      begin
        try
-         
+         begin
         (* Printf.printf "Receiving from %S\n%!" answ.afn_id;  *)
-         (Hashtbl.find ens answ.afn_id).unanswered_requests := 0
+           (Hashtbl.find ens answ.afn_id).unanswered_requests := 0;
+           if (!((Hashtbl.find ens answ.afn_id).version_used )== "")
+	   then (Hashtbl.find ens answ.afn_id).version_used := answ.afn_v
+	 end
       with
         | Not_found ->  Printf.printf "Erreur interne\n";
      end;
@@ -165,7 +169,8 @@ and send_requests requetes socket=
           with Not_found -> 
             begin
 	      let i = ref 1 in
-	      Hashtbl.add ens id_node {unanswered_requests = i};
+	      let s = ref "" in
+	      Hashtbl.add ens id_node {unanswered_requests = i; version_used = s};
             end;
         end;
         incr compteur
