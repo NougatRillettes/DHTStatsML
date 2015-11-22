@@ -80,6 +80,7 @@ type node_info =
   {
     unanswered_requests : int ref;
     version_used : string ref;
+    truncated_t : bool ref;
 }
 
 module NodeInfoMap = Map.Make(String) ;;
@@ -89,7 +90,7 @@ let addReqFifo target id addr fifo =
    let query =
       bencodeQFindNode {
         qfn_id = "12345678901234567890";
-        qfn_t = "00";
+        qfn_t = "789632145";
         qfn_target = target;
         qfn_want = 1;
       }
@@ -108,7 +109,8 @@ let handleReadySocket sck fifo =
         (* Printf.printf "Receiving from %S\n%!" answ.afn_id;  *)
            (Hashtbl.find ens answ.afn_id).unanswered_requests := 0;
            if (!((Hashtbl.find ens answ.afn_id).version_used )== "")
-	   then (Hashtbl.find ens answ.afn_id).version_used := answ.afn_v
+	   then (Hashtbl.find ens answ.afn_id).version_used := answ.afn_v;
+           (Hashtbl.find ens answ.afn_id).truncated_t := !((Hashtbl.find ens answ.afn_id).truncated_t) || (answ.afn_t != "789632145")
 	 end
       with
         | Not_found ->  Printf.printf "Erreur interne\n";
@@ -121,7 +123,6 @@ let handleReadySocket sck fifo =
     in
     List.iter (fun s -> addReqFifo (random_id ()) (get_id s) (genAddr s) fifo) answ.afn_nodes;
     (*Printf.printf "Fifo size : %d\n%!" (FIFO.size fifo);*)
-
   with
     | (Bad_Answer _) -> ()
     |  Not_found ->  Printf.printf "Erreur interne\n";
@@ -170,7 +171,8 @@ and send_requests requetes socket=
             begin
 	      let i = ref 1 in
 	      let s = ref "" in
-	      Hashtbl.add ens id_node {unanswered_requests = i; version_used = s};
+	      let b = ref false in 
+	      Hashtbl.add ens id_node {unanswered_requests = i; version_used = s; truncated_t = b; };
             end;
         end;
         incr compteur
