@@ -47,11 +47,23 @@ let targetNode = ref "abcdefghij0123456789";;
 let trans_num = ref 1 ;;
 let myID = "jihgfedbca9876543210";;
 
+let seeds = Array.make 20 0;;
+let rndCount = ref 100;;
+
 let random_id () =
+  if !rndCount = 100 then
+    begin
+      for i = 0 to 19 do
+        seeds.(i) <- Random.int 256;
+      done;
+      rndCount := 0;
+    end;
   let buf = String.make 20 '0' in
   for i = 0 to 19 do
-    buf.[i] <- Char.chr (Random.int 256);
+    seeds.(i) <- (seeds.(i) + 1) mod 256;
+    buf.[i] <- Char.chr seeds.(i);
   done;
+  incr rndCount;
   buf
 ;;
 
@@ -103,7 +115,7 @@ let addReqFifo target id addr fifo =
 
 let handleReadySocket sck fifo =
   let readBuf = String.make 1500 '0' in
-  ignore (recvfrom sck readBuf 0 1500 []);
+  let (_,addrFrom) = (recvfrom sck readBuf 0 1500 []) in
   try
     let answ = bencoded_to_Find_NodesAnswer (parser readBuf) in
      begin
@@ -125,11 +137,12 @@ let handleReadySocket sck fifo =
       (* Printf.printf "Adding to FIFO : %S at %s:%d\n%!" (get_id s) ip port; *)
   ADDR_INET(inet_addr_of_string ip, port)
     in
+    for i = 0 to 10 do
+      addReqFifo (random_id ()) (answ.afn_id) (addrFrom) fifo;
+    done;
     List.iter
       (fun s ->
-        for i = 0 to 1 do
-          addReqFifo (random_id ()) (get_id s) (genAddr s) fifo;
-        done;
+        addReqFifo (random_id ()) (get_id s) (genAddr s) fifo;
       )
       answ.afn_nodes;
     (* Printf.printf "Fifo size : %d\n%!" (FIFO.size fifo); *)
@@ -167,10 +180,10 @@ let rec receive_requests requetes socket=
 and send_requests requetes socket= 
   let compteur = ref 0 in
   if FIFO.empty requetes then
-    for i=0 to 25000 do
+    for i=0 to 2500 do
       addReqFifo (random_id ()) bootStrapId !addrBootstrap requetes
     done;
-  while (not(FIFO.empty requetes) && !compteur < 30000) do
+  while (not(FIFO.empty requetes) && !compteur < 3000) do
 
       let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
         (* Printf.printf "Sending to %S\n%!" id_node; *)
@@ -198,7 +211,7 @@ and send_requests requetes socket=
 let main =
   let (addrinfo::_) = getaddrinfo "router.utorrent.com" "6881" [] in
   addrBootstrap := addrinfo.ai_addr;
-  let requetes = FIFO.make 300000 in
+  let requetes = FIFO.make 30000000 in
   let s = socket PF_INET SOCK_DGRAM 0 in
   let ourID = random_id () in
   let bencodedQuery =
