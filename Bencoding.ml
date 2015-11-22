@@ -134,48 +134,64 @@ let parser s =
 (* Bencoded to answer *)
 
 
+let verif_champ_y l = 
+  try 
+    let y = List.assoc "y" l in
+      begin
+	match y with
+	|BString "r" -> ()
+	|BString _ -> raise (Bad_Answer "Contenu du champ y invalide")
+	|BDic _ -> raise (Bad_Answer "Contenu du champ y invalide")
+      end;
+  with Not_found -> raise (Bad_Answer "Champ y manquant dans la réponse dans la reponse")
+    
+
+let verif_champ_t l = 
+  try 
+    let y = List.assoc "y" l in
+    begin
+      match y with
+	|BString a -> a
+	|BDic _ -> raise (Bad_Answer "Contenu du champ t invalide")
+    end;
+  with Not_found -> ""
+      
+    
+let verif_champ_r l = 
+  try
+    let r = List.assoc "r" l in
+    begin
+      match r with
+      |BString _ ->  raise (Bad_Answer "Contenu du champ r invalide")
+      |BDic dic -> dic
+    end
+  with Not_found -> raise (Bad_Answer "Champ r manquant dans la réponse dans la reponse")
+    
+let verif_champ_v l =
+  try
+    let v = List.assoc "v" l in 
+    begin
+      match v with
+      |BString b -> b
+      |BDic _-> ""
+    end
+  with Not_found -> ""
+
+
 (*bencode_to_idAndDic : bencoded -> (string*BDic 'a)*)
+
 let bencoded_to_idAndDicAndV b = 
   match b with
   |BString _-> raise (Bad_Answer "La réponse n'est pas un BDic")
-  |BDic l -> 
-    begin
-      try 
-	let y = List.assoc "y" l in
-	begin
-	  match y with
-	  |BString "r" -> 
-	    let t = List.assoc "t" l in 
-	    begin
-	      match t with
-	      |BString a -> 
-		begin
-		  let r = List.assoc "r" l in
-		  begin
-		    match r with
-		    |BString _ ->  raise (Bad_Answer "Contenu du champ r invalide")
-		    |BDic dic -> begin
-		      try
-			let v = List.assoc "v" l in 
-			begin
-			  match v with
-			  |BString b -> (a, dic, b)
-			  |BDic _-> (a, dic, "")
-			end
-		      with Not_found -> (a, dic, "")
-		    end
-		  end
-		end
-	      |BDic _ -> raise (Bad_Answer "Contenu du champ t invalide")
-	    end;
-	  |BString _ -> raise (Bad_Answer "Contenu du champ y invalide")
-	  |BDic _ -> raise (Bad_Answer "Contenu du champ y invalide")
-	end;
-      with Not_found -> raise (Bad_Answer "Champ manquant dans la réponse dans la reponse");
-    end
-;;
-
-
+  |BDic l -> begin
+    verif_champ_y l; 
+    let a = verif_champ_t l in
+    let dic = verif_champ_r l in
+    let v = verif_champ_v l in
+    (a, dic, v)
+  end
+    
+   
 
 let bencoded_to_id b = 
   let (a, dic, v) = bencoded_to_idAndDicAndV b in
