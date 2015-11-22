@@ -131,28 +131,36 @@ let get_port s =
   (Char.code (port.[0]))*256 + (Char.code (port.[1]))
 ;;
 
-let handleReadySocket sck fifo =
-  let readBuf = String.make 1500 '0' in
-  ignore (recvfrom sck readBuf 0 1500 []);
-  let answ = bencoded_to_Find_NodesAnswer (parser readBuf) in
-  let genFifoElem s =
-    let query =
+let addReqFifo id addr fifo =
+   let query =
       bencodeQFindNode {
         qfn_id = "12345678901234567890";
         qfn_t = "00";
-        qfn_target = get_id s;
+        qfn_target = id;
         qfn_want = 1;
       }
-    in
-    let ip = get_ip s in
-    let port = get_port s in
-    (query, ADDR_INET(inet_addr_of_string ip, port))
-  in
-  List.iter (fun s -> FIFO.push (genFifoElem s) fifo) answ.afn_nodes
+   in
+   FIFO.push (query,addr) fifo;
 ;;
 
+let handleReadySocket sck fifo =
+  let readBuf = String.make 1500 '0' in
+  ignore (recvfrom sck readBuf 0 1500 []);
+  try 
+    let answ = bencoded_to_Find_NodesAnswer (parser readBuf) in
+    let genAddr s =
+      let ip = get_ip s in
+      let port = get_port s in
+      ADDR_INET(inet_addr_of_string ip, port)
+    in
+    List.iter (fun s -> addReqFifo (get_id s) (genAddr s) fifo) answ.afn_nodes
+  with
+    | (Bad_Answer _) -> ();
+;;
+
+
 let rec receive_requests requetes socket= 
-  let (f1, f2, f3) = select [socket] [] [] 0. in
+  let (f1, f2, f3) = select [socket] [] [] 0.1 in
   begin
     match f1 with
     |[] -> send_requests requetes socket
@@ -162,7 +170,11 @@ let rec receive_requests requetes socket=
     
 and send_requests requetes socket= 
   let compteur = ref 0 in
-  while (not(FIFO.empty requetes) && !compteur < 10) do 
+  if FIFO.empty requetes then 
+    for i=0 to 100 do
+      addReqFifo (random_id ()) requetes
+    done;
+  while (not(FIFO.empty requetes) && !compteur < 100) do 
     let (bencoded, serv_addr) = FIFO.pop requetes in
     sendto socket bencoded 0 (String.length bencoded) [] serv_addr;
     incr compteur
@@ -171,7 +183,7 @@ and send_requests requetes socket=
 ;;
     
 
-let main () =
+let main =
   let requetes = FIFO.make 1000 in
   let s = socket PF_INET SOCK_DGRAM 0 in
   let premiere_target = random_id () in 
