@@ -93,10 +93,10 @@ let myID = "jihgfedbca9876543210";;
 
 
 let random_id () =
-  let fd = open_in "/dev/urandom" in
   let buf = String.make 20 '0' in
-  input fd buf 0 20;
-  close_in fd;
+  for i = 0 to 19 do
+    buf.[i] <- Char.chr (Random.int 256);
+  done;
   buf
 ;;
 
@@ -184,8 +184,11 @@ let rec receive_requests requetes socket=
   begin
     match f1 with
       |[] ->
-          Printf.printf "Nous avons un set qui a une taille de %i\n%!" (NodeInfoMap.cardinal !ens);
-          send_requests requetes socket
+          let n = (NodeInfoMap.cardinal !ens) in
+          Printf.printf "Nous avons un set qui a une taille de %i\n%!" n;
+          if true
+          then (send_requests requetes socket)
+          else ()
       |[socket] -> begin handleReadySocket socket requetes; receive_requests requetes socket end
       |_ -> begin Printf.printf "erreur interne!\n"; send_requests requetes socket end
   end
