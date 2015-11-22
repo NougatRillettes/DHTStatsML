@@ -17,12 +17,13 @@ val bencodeQuery : query -> string
 
 
 
-type aPing = { ap_t : string; ap_id : string; }
+type aPing = { ap_t : string; ap_id : string; ap_v : string}
 
 type aFindNode = {
   afn_t : string;
   afn_id : string;
   afn_nodes : string list;
+  afn_v : string;
 }
 
 type answer = APing of aPing | AFindNode of aFindNode
@@ -34,7 +35,7 @@ val parser : string -> bencoded
 
 exception Bad_Answer of string;;
 
-val bencoded_to_idAndDic : bencoded -> string * (string * bencoded) list
+val bencoded_to_idAndDicAndV : bencoded -> string * (string * bencoded) list * string
 val bencoded_to_id : bencoded -> string
 val bencoded_to_PingAnswer : bencoded -> aPing
 val bencoded_to_Find_NodesAnswer : bencoded -> aFindNode
