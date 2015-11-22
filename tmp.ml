@@ -86,6 +86,9 @@ type node_info =
 module NodeInfoMap = Map.Make(String) ;;
 let ens = Hashtbl.create 500000;;
 
+let nb_sent_requests = ref 0;;
+let nb_received_answers = ref 0;;
+
 let addReqFifo target id addr fifo =
    let query =
       bencodeQFindNode {
@@ -104,6 +107,7 @@ let handleReadySocket sck fifo =
   try
     let answ = bencoded_to_Find_NodesAnswer (parser readBuf) in
      begin
+       incr nb_received_answers;
        try
          begin
         (* Printf.printf "Receiving from %S\n%!" answ.afn_id;  *)
@@ -163,6 +167,7 @@ and send_requests requetes socket=
       let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
         (*Printf.printf "Sending to %S\n%!" id_node;*)
       try
+	incr nb_sent_requests;
         envoie socket bencoded serv_addr;
         begin
           try 
