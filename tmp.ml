@@ -127,7 +127,7 @@ type node_info =
 }
 
 module NodeInfoMap = Map.Make(String) ;;
-let ens = ref NodeInfoMap.empty;;
+let ens = Hashtbl.create 500000;;
 
 let addReqFifo target id addr fifo =
    let query =
@@ -150,8 +150,7 @@ let handleReadySocket sck fifo =
        try
          
         (* Printf.printf "Receiving from %S\n%!" answ.afn_id;  *)
-         (NodeInfoMap.find answ.afn_id !ens).unanswered_requests := 0
-           
+         (Hashtbl.find ens answ.afn_id).unanswered_requests := 0
       with
         | Not_found ->  Printf.printf "Erreur interne\n";
      end;
@@ -184,7 +183,7 @@ let rec receive_requests requetes socket=
   begin
     match f1 with
       |[] ->
-          let n = (NodeInfoMap.cardinal !ens) in
+          let n = (Hashtbl.length ens) in
           Printf.printf "Nous avons un set qui a une taille de %i\n%!" n;
           if true
           then (send_requests requetes socket)
@@ -195,25 +194,24 @@ let rec receive_requests requetes socket=
     
 and send_requests requetes socket= 
   let compteur = ref 0 in
-  if (FIFO.empty requetes) then 
-    for i=0 to 50 do
-      addReqFifo (random_id ()) "\235\2556isQ\255J\236)\205\186\171\242\251\227F|\194g"  addrBootstrap requetes
-    done;
-  while (not(FIFO.empty requetes) && !compteur < 100) do
-    try
+ 
+  for i=0 to 1000 do
+    addReqFifo (random_id ()) "\235\2556isQ\255J\236)\205\186\171\242\251\227F|\194g"  addrBootstrap requetes
+  done;
+  while (not(FIFO.empty requetes) && !compteur < 30000) do
+
       let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
-      (*Printf.printf "Sending to %S\n%!" id_node;*)
-      try 
-        if (not(!((NodeInfoMap.find id_node !ens).unanswered_requests) > 2000)) 
-        then begin
-	  envoie socket bencoded serv_addr;
-	  incr (NodeInfoMap.find id_node !ens).unanswered_requests;
-        end
-      with Not_found -> 
+        (*Printf.printf "Sending to %S\n%!" id_node;*)
+      try
+        envoie socket bencoded serv_addr;
         begin
-	  envoie socket bencoded serv_addr;
-	  let i = ref 1 in
-	  ens := NodeInfoMap.add id_node {unanswered_requests = i} !ens;
+          try 
+	    incr (Hashtbl.find ens id_node).unanswered_requests;
+          with Not_found -> 
+            begin
+	      let i = ref 1 in
+	      Hashtbl.add ens id_node {unanswered_requests = i};
+            end;
         end;
         incr compteur
     with | (Unix_error (EINVAL,_,_)) -> ();
@@ -223,7 +221,7 @@ and send_requests requetes socket=
     
 
 let main =
-  let requetes = FIFO.make 100000 in
+  let requetes = FIFO.make 300000 in
   let s = socket PF_INET SOCK_DGRAM 0 in
   send_requests requetes s
 ;;
