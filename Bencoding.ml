@@ -126,7 +126,7 @@ let parser s =
           BDic [];
       | x when '0' <= x && x <= '9' ->
           BString (parse_string ());
-      | _ -> failwith "Parse error :("
+      | _ -> Bad_Answer "Parse error :("
   in
   aux ()
 ;;
