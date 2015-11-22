@@ -20,6 +20,8 @@ let empty (n,_,_) =
   !n == 0
 ;;
 
+let size (_,_,m) = m;;
+
 let push x (n,l,max) =
   if !n == max then
     begin

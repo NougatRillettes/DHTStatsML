@@ -153,44 +153,53 @@ let addReqFifo target id addr fifo =
 let handleReadySocket sck fifo =
   let readBuf = String.make 1500 '0' in
   ignore (recvfrom sck readBuf 0 1500 []);
-  try 
+  try
     let answ = bencoded_to_Find_NodesAnswer (parser readBuf) in
-    try
-      (* Printf.printf "Receiving from %S\n%!" answ.afn_id; *)
-      (NodeInfoMap.find answ.afn_id !ens).unanswered_requests := 0
-    with 
-      | Not_found -> Printf.printf "Erreur interne\n";
+     begin
+       try
+         
+        (* Printf.printf "Receiving from %S\n%!" answ.afn_id;  *)
+         (NodeInfoMap.find answ.afn_id !ens).unanswered_requests := 0
+           
+      with
+        | Not_found ->  Printf.printf "Erreur interne\n";
+     end;
     let genAddr s =
       let ip = get_ip s in
       let port = get_port s in
-      ADDR_INET(inet_addr_of_string ip, port)
+      (*Printf.printf "Adding to FIFO : %S at %s:%d\n%!" (get_id s) ip port;*)
+  ADDR_INET(inet_addr_of_string ip, port)
     in
-    List.iter (fun s -> addReqFifo (get_id s) (get_id s) (genAddr s) fifo) answ.afn_nodes
+    List.iter (fun s -> addReqFifo (random_id ()) (get_id s) (genAddr s) fifo) answ.afn_nodes;
+    (*Printf.printf "Fifo size : %d\n%!" (FIFO.size fifo);*)
+
   with
     | (Bad_Answer _) -> ()
+    |  Not_found ->  Printf.printf "Erreur interne\n";
 ;;
 
 
 let rec receive_requests requetes socket= 
-  Printf.printf "Nous avons un set qui a une taille de %i\n%!" (NodeInfoMap.cardinal !ens); 
   let (f1, f2, f3) = select [socket] [] [] 0.1 in
   begin
     match f1 with
-    |[] -> send_requests requetes socket
-    |[socket] -> begin handleReadySocket socket requetes; receive_requests requetes socket end
-    |_ -> begin Printf.printf "erreur interne!\n"; send_requests requetes socket end
+      |[] ->
+          Printf.printf "Nous avons un set qui a une taille de %i\n%!" (NodeInfoMap.cardinal !ens);
+          send_requests requetes socket
+      |[socket] -> begin handleReadySocket socket requetes; receive_requests requetes socket end
+      |_ -> begin Printf.printf "erreur interne!\n"; send_requests requetes socket end
   end
     
 and send_requests requetes socket= 
   let compteur = ref 0 in
   if (FIFO.empty requetes) then 
-    for i=0 to 100 do
-      addReqFifo "\235\2556isQ\255J\236)\205\186\171\242\251\227F|\194g" (random_id ()) addrBootstrap requetes
+    for i=0 to 50 do
+      addReqFifo (random_id ()) "\235\2556isQ\255J\236)\205\186\171\242\251\227F|\194g"  addrBootstrap requetes
     done;
-  while (not(FIFO.empty requetes) && !compteur < 1000) do
+  while (not(FIFO.empty requetes) && !compteur < 100) do
     try
       let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
-      (* Printf.printf "Sending to %S\n%!" id_node; *)
+      (*Printf.printf "Sending to %S\n%!" id_node;*)
       try 
         if (not(!((NodeInfoMap.find id_node !ens).unanswered_requests) > 2000)) 
         then begin
@@ -211,7 +220,7 @@ and send_requests requetes socket=
     
 
 let main =
-  let requetes = FIFO.make 10000 in
+  let requetes = FIFO.make 100000 in
   let s = socket PF_INET SOCK_DGRAM 0 in
   send_requests requetes s
 ;;
