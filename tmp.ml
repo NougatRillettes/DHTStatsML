@@ -138,12 +138,12 @@ type node_info =
 module NodeInfoMap = Map.Make(String) ;;
 let ens = ref NodeInfoMap.empty;;
 
-let addReqFifo id addr fifo =
+let addReqFifo target id addr fifo =
    let query =
       bencodeQFindNode {
         qfn_id = "12345678901234567890";
         qfn_t = "00";
-        qfn_target = id;
+        qfn_target = target;
         qfn_want = 1;
       }
    in
@@ -164,7 +164,7 @@ let handleReadySocket sck fifo =
       let port = get_port s in
       ADDR_INET(inet_addr_of_string ip, port)
     in
-    List.iter (fun s -> addReqFifo (get_id s) (genAddr s) fifo) answ.afn_nodes
+    List.iter (fun s -> addReqFifo (random_id ()) (get_id s) (genAddr s) fifo) answ.afn_nodes
   with
     | (Bad_Answer _) -> ()
 ;;
@@ -184,7 +184,7 @@ and send_requests requetes socket=
   let compteur = ref 0 in
   if (FIFO.empty requetes) then 
     for i=0 to 100 do
-      addReqFifo (random_id ()) addrBootstrap requetes
+      addReqFifo (random_id ()) "bootstrap" addrBootstrap requetes
     done;
   while (not(FIFO.empty requetes) && !compteur < 100) do 
     let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
