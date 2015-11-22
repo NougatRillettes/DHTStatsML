@@ -28,7 +28,7 @@ match (currentTrans.(!index)) with
 end
 
 
-let addrBootstrap = ADDR_INET(inet_addr_of_string "82.221.103.244", 6881);;
+let addrBootstrap = ref (ADDR_INET (inet_addr_of_string "82.221.103.244", 6881));;
 
 
 let int_to_trans_num i = 
@@ -122,11 +122,17 @@ let handleReadySocket sck fifo =
     let genAddr s =
       let ip = get_ip s in
       let port = get_port s in
-      (*Printf.printf "Adding to FIFO : %S at %s:%d\n%!" (get_id s) ip port;*)
+      (* Printf.printf "Adding to FIFO : %S at %s:%d\n%!" (get_id s) ip port; *)
   ADDR_INET(inet_addr_of_string ip, port)
     in
-    List.iter (fun s -> addReqFifo (random_id ()) (get_id s) (genAddr s) fifo) answ.afn_nodes;
-    (*Printf.printf "Fifo size : %d\n%!" (FIFO.size fifo);*)
+    List.iter
+      (fun s ->
+        for i = 0 to 1 do
+          addReqFifo (random_id ()) (get_id s) (genAddr s) fifo;
+        done;
+      )
+      answ.afn_nodes;
+    (* Printf.printf "Fifo size : %d\n%!" (FIFO.size fifo); *)
   with
     | (Bad_Answer _) -> ()
     |  Not_found ->  Printf.printf "Erreur interne\n";
@@ -140,8 +146,10 @@ let rec envoie socket bencoded serv_addr =
     Printf.printf "manque de buffer! on réessaie\n";
     sleep(1);
     envoie socket bencoded serv_addr
-  end
+  end;;
 
+let bootStrapId = String.make 20 '0';;
+      
 let rec receive_requests requetes socket= 
   let (f1, f2, f3) = select [socket] [] [] 0.1 in
   begin
@@ -158,14 +166,14 @@ let rec receive_requests requetes socket=
     
 and send_requests requetes socket= 
   let compteur = ref 0 in
- 
-  for i=0 to 1000 do
-    addReqFifo (random_id ()) "\235\2556isQ\255J\236)\205\186\171\242\251\227F|\194g"  addrBootstrap requetes
-  done;
+  if FIFO.empty requetes then
+    for i=0 to 25000 do
+      addReqFifo (random_id ()) bootStrapId !addrBootstrap requetes
+    done;
   while (not(FIFO.empty requetes) && !compteur < 30000) do
 
       let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
-        (*Printf.printf "Sending to %S\n%!" id_node;*)
+        (* Printf.printf "Sending to %S\n%!" id_node; *)
       try
 	incr nb_sent_requests;
         envoie socket bencoded serv_addr;
@@ -188,7 +196,24 @@ and send_requests requetes socket=
     
 
 let main =
+  let (addrinfo::_) = getaddrinfo "router.utorrent.com" "6881" [] in
+  addrBootstrap := addrinfo.ai_addr;
   let requetes = FIFO.make 300000 in
   let s = socket PF_INET SOCK_DGRAM 0 in
+  let ourID = random_id () in
+  let bencodedQuery =
+    bencodeQFindNode {
+      qfn_id = ourID;
+      qfn_t = "00";
+      qfn_target = ourID;
+      qfn_want = 1;
+    } in    
+  ignore ( sendto s bencodedQuery 0 (String.length bencodedQuery) [] !addrBootstrap); 
+  let buffer_reponse = String.create 1500 in
+  ignore ( recvfrom s buffer_reponse 0 1500 []);
+  let bootStrapId' =  bencoded_to_id (parser buffer_reponse) in
+  for i = 0 to 19 do
+    bootStrapId.[i] <- bootStrapId'.[i];
+  done;
   send_requests requetes s
 ;;
