@@ -155,16 +155,17 @@ let handleReadySocket sck fifo =
   ignore (recvfrom sck readBuf 0 1500 []);
   try 
     let answ = bencoded_to_Find_NodesAnswer (parser readBuf) in
-    try 
-    (NodeInfoMap.find answ.afn_id !ens).unanswered_requests := 0
+    try
+      (* Printf.printf "Receiving from %S\n%!" answ.afn_id; *)
+      (NodeInfoMap.find answ.afn_id !ens).unanswered_requests := 0
     with 
-    | Not_found -> Printf.printf "Erreur interne\n";
+      | Not_found -> Printf.printf "Erreur interne\n";
     let genAddr s =
       let ip = get_ip s in
       let port = get_port s in
       ADDR_INET(inet_addr_of_string ip, port)
     in
-    List.iter (fun s -> addReqFifo (random_id ()) (get_id s) (genAddr s) fifo) answ.afn_nodes
+    List.iter (fun s -> addReqFifo (get_id s) (get_id s) (genAddr s) fifo) answ.afn_nodes
   with
     | (Bad_Answer _) -> ()
 ;;
@@ -184,30 +185,33 @@ and send_requests requetes socket=
   let compteur = ref 0 in
   if (FIFO.empty requetes) then 
     for i=0 to 100 do
-      addReqFifo (random_id ()) "\235\2556isQ\255J\236)\205\186\171\242\251\227F|\194g" addrBootstrap requetes
+      addReqFifo "\235\2556isQ\255J\236)\205\186\171\242\251\227F|\194g" (random_id ()) addrBootstrap requetes
     done;
-  while (not(FIFO.empty requetes) && !compteur < 100) do 
-    let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
-    try 
-      if (not(!((NodeInfoMap.find id_node !ens).unanswered_requests) > 2000)) 
-      then begin
-	sendto socket bencoded 0 (String.length bencoded) [] serv_addr;
-	incr (NodeInfoMap.find id_node !ens).unanswered_requests;
-      end
-    with Not_found -> 
-      begin
-	sendto socket bencoded 0 (String.length bencoded) [] serv_addr;
-	let i = ref 1 in
-	ens := NodeInfoMap.add id_node {unanswered_requests = i} !ens;
-      end;
-      incr compteur
+  while (not(FIFO.empty requetes) && !compteur < 1000) do
+    try
+      let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
+      (* Printf.printf "Sending to %S\n%!" id_node; *)
+      try 
+        if (not(!((NodeInfoMap.find id_node !ens).unanswered_requests) > 2000)) 
+        then begin
+	  sendto socket bencoded 0 (String.length bencoded) [] serv_addr;
+	  incr (NodeInfoMap.find id_node !ens).unanswered_requests;
+        end
+      with Not_found -> 
+        begin
+	  sendto socket bencoded 0 (String.length bencoded) [] serv_addr;
+	  let i = ref 1 in
+	  ens := NodeInfoMap.add id_node {unanswered_requests = i} !ens;
+        end;
+        incr compteur
+    with | (Unix_error (EINVAL,_,_)) -> ();
   done;
   receive_requests requetes socket
 ;;
     
 
 let main =
-  let requetes = FIFO.make 1000 in
+  let requetes = FIFO.make 10000 in
   let s = socket PF_INET SOCK_DGRAM 0 in
   send_requests requetes s
 ;;

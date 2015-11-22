@@ -22,7 +22,11 @@ let empty (n,_,_) =
 
 let push x (n,l,max) =
   if !n == max then
-    l := List.rev (List.tl (List.rev !l));
+    begin
+      (* l := List.rev (List.tl (List.rev !l)); *)
+      l := [];
+      decr n;
+    end;
   incr n;
   l := (x::!l)
 ;;
