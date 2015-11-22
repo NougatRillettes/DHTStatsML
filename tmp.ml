@@ -171,7 +171,7 @@ let handleReadySocket sck fifo =
 
 
 let rec receive_requests requetes socket= 
-  Printf.printf "Nous avons un set qui a une taille de %i\n" (NodeInfoMap.cardinal !ens); 
+  Printf.printf "Nous avons un set qui a une taille de %i\n%!" (NodeInfoMap.cardinal !ens); 
   let (f1, f2, f3) = select [socket] [] [] 0.1 in
   begin
     match f1 with
@@ -184,12 +184,12 @@ and send_requests requetes socket=
   let compteur = ref 0 in
   if (FIFO.empty requetes) then 
     for i=0 to 100 do
-      addReqFifo (random_id ()) "bootstrap" addrBootstrap requetes
+      addReqFifo (random_id ()) "\235\2556isQ\255J\236)\205\186\171\242\251\227F|\194g" addrBootstrap requetes
     done;
   while (not(FIFO.empty requetes) && !compteur < 100) do 
     let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
     try 
-      if (not(!((NodeInfoMap.find id_node !ens).unanswered_requests) > 20)) 
+      if (not(!((NodeInfoMap.find id_node !ens).unanswered_requests) > 2000)) 
       then begin
 	sendto socket bencoded 0 (String.length bencoded) [] serv_addr;
 	incr (NodeInfoMap.find id_node !ens).unanswered_requests;
