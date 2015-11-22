@@ -136,7 +136,7 @@ type node_info =
 }
 
 module NodeInfoMap = Map.Make(String) ;;
-let ens = NodeInfoMap.empty;;
+let ens = ref NodeInfoMap.empty;;
 
 let addReqFifo id addr fifo =
    let query =
@@ -156,7 +156,7 @@ let handleReadySocket sck fifo =
   try 
     let answ = bencoded_to_Find_NodesAnswer (parser readBuf) in
     try 
-    (NodeInfoMap.find answ.afn_id ens).unanswered_requests := 0
+    (NodeInfoMap.find answ.afn_id !ens).unanswered_requests := 0
     with 
     | Not_found -> Printf.printf "Erreur interne\n";
     let genAddr s =
@@ -171,7 +171,7 @@ let handleReadySocket sck fifo =
 
 
 let rec receive_requests requetes socket= 
-  Printf.printf "Nous avons un set qui a une taille de %i\n" (NodeInfoMap.cardinal ens); 
+  Printf.printf "Nous avons un set qui a une taille de %i\n" (NodeInfoMap.cardinal !ens); 
   let (f1, f2, f3) = select [socket] [] [] 0.1 in
   begin
     match f1 with
@@ -189,16 +189,16 @@ and send_requests requetes socket=
   while (not(FIFO.empty requetes) && !compteur < 100) do 
     let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
     try 
-      if (not(!((NodeInfoMap.find id_node ens).unanswered_requests) > 20)) 
+      if (not(!((NodeInfoMap.find id_node !ens).unanswered_requests) > 20)) 
       then begin
 	sendto socket bencoded 0 (String.length bencoded) [] serv_addr;
-	incr (NodeInfoMap.find id_node ens).unanswered_requests;
+	incr (NodeInfoMap.find id_node !ens).unanswered_requests;
       end
     with Not_found -> 
       begin
 	sendto socket bencoded 0 (String.length bencoded) [] serv_addr;
 	let i = ref 1 in
-	NodeInfoMap.add id_node {unanswered_requests = i} ens;
+	ens := NodeInfoMap.add id_node {unanswered_requests = i} !ens;
       end;
       incr compteur
   done;
