@@ -119,7 +119,7 @@ let handleReadySocket sck fifo =
       )
       answ.afn_nodes;
   with
-    | (Bad_Answer _) -> ()
+    | _ -> ()
     |  Not_found ->  Printf.printf "Erreur interne\n";
 ;;
 
