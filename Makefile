@@ -1,5 +1,5 @@
 all:
-	ocamlbuild -lib unix tmp.native
+	ocamlbuild -lib unix Main.native
 
 profile:
-	ocamlbuild  -tag debug -tag profile -lib unix tmp.p.native
+	ocamlbuild  -tag debug -tag profile -lib unix Main.p.native
