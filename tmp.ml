@@ -117,7 +117,7 @@ let rec envoie socket bencoded serv_addr =
 let bootStrapId = String.make 20 '0';;
       
 let rec receive_requests requetes socket= 
-  let (f1, f2, f3) = select [socket] [] [] 0.1 in
+  let (f1, f2, f3) = select [socket] [] [] 0. in
   begin
     match f1 with
       |[] ->
