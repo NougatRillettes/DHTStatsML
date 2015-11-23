@@ -40,24 +40,27 @@ let int_to_trans_num i =
 ;; 
 
 let trans_num = ref 1 ;;
+let ourID = ref "jihgfedbca9876543210";;
 
 type node_info = 
   {
-    unanswered_requests : int ref;
-    version_used : string ref;
-    truncated_t : bool ref;
+    mutable asked : bool;
+    mutable answered : bool;
+    mutable version_used : string;
+    mutable truncated_t : bool;
 }
 
 module NodeInfoMap = Map.Make(String) ;;
 let ens = Hashtbl.create 500000;;
 
-let nb_sent_requests = ref 0;;
-let nb_received_answers = ref 0;;
+
+let statTimer = ref (Unix.time ());;
+let lastCard = ref 0.0;;
 
 let addReqFifo target id addr fifo =
    let query =
       bencodeQFindNode {
-        qfn_id = "12345678901234567890";
+        qfn_id = !ourID;
         qfn_t = "789632145";
         qfn_target = target;
         qfn_want = 1;
@@ -72,14 +75,13 @@ let handleReadySocket sck fifo =
   try
     let answ = bencoded_to_Find_NodesAnswer (parser readBuf) in
      begin
-       incr nb_received_answers;
        try
          begin
         (* Printf.printf "Receiving from %S\n%!" answ.afn_id;  *)
-           (Hashtbl.find ens answ.afn_id).unanswered_requests := 0;
-           if (!((Hashtbl.find ens answ.afn_id).version_used )== "")
-	   then (Hashtbl.find ens answ.afn_id).version_used := answ.afn_v;
-           (Hashtbl.find ens answ.afn_id).truncated_t := !((Hashtbl.find ens answ.afn_id).truncated_t) || (answ.afn_t != "789632145")
+           (Hashtbl.find ens answ.afn_id).answered <- true;
+           if (((Hashtbl.find ens answ.afn_id).version_used ) == "")
+	   then (Hashtbl.find ens answ.afn_id).version_used <- answ.afn_v;
+           (Hashtbl.find ens answ.afn_id).truncated_t <- (answ.afn_t != "789632145")
 	 end
       with
         | Not_found ->  Printf.printf "Erreur interne\n";
@@ -90,7 +92,7 @@ let handleReadySocket sck fifo =
       (* Printf.printf "Adding to FIFO : %S at %s:%d\n%!" (get_id s) ip port; *)
   ADDR_INET(inet_addr_of_string ip, port)
     in
-    for i = 0 to 10 do
+    for i = 0 to 00 do
       addReqFifo (random_id ()) (answ.afn_id) (addrFrom) fifo;
     done;
     List.iter
@@ -122,7 +124,15 @@ let rec receive_requests requetes socket=
     match f1 with
       |[] ->
           let n = (Hashtbl.length ens) in
-          Printf.printf "Nous avons un set qui a une taille de %i\n%!" n;
+          let timeR = 0.0 in
+          if (Unix.time ()) -. !statTimer >= timeR then
+            begin
+              statTimer := Unix.time ();
+              Printf.printf "Nous avons un set qui a une taille de %i\n" n;
+              Printf.printf "Vitesse : %F\n%!"
+                (((float_of_int n) -. !lastCard) /. (if timeR = 0.0 then 1.0 else timeR));
+              lastCard := float_of_int n;
+            end;
           if true
           then (send_requests requetes socket)
           else ()
@@ -133,25 +143,21 @@ let rec receive_requests requetes socket=
 and send_requests requetes socket= 
   let compteur = ref 0 in
   if FIFO.empty requetes then
-    for i=0 to 2500 do
+    for i=0 to 25000 do
       addReqFifo (random_id ()) bootStrapId !addrBootstrap requetes
     done;
-  while (not(FIFO.empty requetes) && !compteur < 3000) do
+  while (not(FIFO.empty requetes) && !compteur < 30000) do
 
       let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
         (* Printf.printf "Sending to %S\n%!" id_node; *)
       try
-	incr nb_sent_requests;
         envoie socket bencoded serv_addr;
         begin
           try 
-	    incr (Hashtbl.find ens id_node).unanswered_requests;
+	   (Hashtbl.find ens id_node).asked <- true;
           with Not_found -> 
             begin
-	      let i = ref 1 in
-	      let s = ref "" in
-	      let b = ref false in 
-	      Hashtbl.add ens id_node {unanswered_requests = i; version_used = s; truncated_t = b; };
+	      Hashtbl.add ens id_node {asked = true; version_used = ""; truncated_t = false; answered = false; };
             end;
         end;
         incr compteur
@@ -164,14 +170,14 @@ and send_requests requetes socket=
 let main =
   let (addrinfo::_) = getaddrinfo "router.utorrent.com" "6881" [] in
   addrBootstrap := addrinfo.ai_addr;
-  let requetes = FIFO.make 30000000 in
+  let requetes = FIFO.make (int_of_float 10e5) in
   let s = socket PF_INET SOCK_DGRAM 0 in
-  let ourID = random_id () in
+  ourID := random_id ();
   let bencodedQuery =
     bencodeQFindNode {
-      qfn_id = ourID;
+      qfn_id = !ourID;
       qfn_t = "00";
-      qfn_target = ourID;
+      qfn_target = !ourID;
       qfn_want = 1;
     } in    
   ignore ( sendto s bencodedQuery 0 (String.length bencodedQuery) [] !addrBootstrap); 
