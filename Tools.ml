@@ -43,3 +43,19 @@ let random_id () =
   incr rndCount;
   buf
 ;;
+
+let generateNeighbors s =
+  let s' = String.copy s in
+  let allOne = lnot 0 in
+  let res = ref [] in
+  for i = 19 downto 0 do
+    let n = Char.code s'.[i] in
+    for j = 1 to 8 do
+      s'.[i] <- Char.chr ((n land (allOne lsl (j))) mod 256);
+      let s'' = String.copy s' in
+      res := s'' :: !res;
+    done;
+  done;
+  !res
+;;
+    

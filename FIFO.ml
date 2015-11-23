@@ -25,9 +25,13 @@ let size (n,_,_) = !n;;
 let push x (n,l,max) =
   if !n == max then
     begin
-      (* l := List.rev (List.tl (List.rev !l)); *)
+      
+      l := List.rev (List.tl (List.rev !l)); 
+      decr n;
+    (*
       l := [];
       n := 0;
+    *)
     end;
   incr n;
   l := (x::!l)

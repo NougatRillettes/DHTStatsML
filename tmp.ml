@@ -44,7 +44,7 @@ let ourID = ref "jihgfedbca9876543210";;
 
 type node_info = 
   {
-    mutable asked : bool;
+    mutable asked : int;
     mutable answered : bool;
     mutable version_used : string;
     mutable truncated_t : bool;
@@ -70,37 +70,54 @@ let addReqFifo target id addr fifo =
 ;;
 
 let handleReadySocket sck fifo =
+  let genAddr s =
+    let ip = get_ip s in
+    let port = get_port s in
+    (*Printf.printf "Adding to FIFO : %S at %s:%d\n%!" (get_id s) ip port;*)
+    ADDR_INET(inet_addr_of_string ip, port)
+  in
   let readBuf = String.make 1500 '0' in
   let (_,addrFrom) = (recvfrom sck readBuf 0 1500 []) in
   try
     let answ = bencoded_to_Find_NodesAnswer (parser readBuf) in
-     begin
-       try
-         begin
-        (* Printf.printf "Receiving from %S\n%!" answ.afn_id;  *)
-           (Hashtbl.find ens answ.afn_id).answered <- true;
-           if (((Hashtbl.find ens answ.afn_id).version_used ) == "")
-	   then (Hashtbl.find ens answ.afn_id).version_used <- answ.afn_v;
-           (Hashtbl.find ens answ.afn_id).truncated_t <- (answ.afn_t != "789632145")
-	 end
+    let ensEntry =
+      try
+        (Hashtbl.find ens answ.afn_id)
       with
-        | Not_found ->  Printf.printf "Erreur interne\n";
-     end;
-    let genAddr s =
-      let ip = get_ip s in
-      let port = get_port s in
-      (* Printf.printf "Adding to FIFO : %S at %s:%d\n%!" (get_id s) ip port; *)
-  ADDR_INET(inet_addr_of_string ip, port)
+        | Not_found ->
+            Hashtbl.add ens answ.afn_id {asked = 0; version_used = ""; truncated_t = false; answered = true};
+            (Hashtbl.find ens answ.afn_id);
     in
-    for i = 0 to 00 do
-      addReqFifo (random_id ()) (answ.afn_id) (addrFrom) fifo;
-    done;
+    (*Printf.printf "Receiving from %S\n%!" answ.afn_id; *)
+    ensEntry.answered <- true;
+    ensEntry.version_used <- answ.afn_v;
+    ensEntry.truncated_t <- (answ.afn_t != "789632145");
+    (* Discover neighbors *)
+    if (not ensEntry.answered) then
+      begin
+        List.iter
+          (fun s ->
+            addReqFifo s answ.afn_id addrFrom fifo
+          )
+          (generateNeighbors answ.afn_id);
+        ensEntry.answered <- true;
+      end;
+    (* Probe given nodes *)
     List.iter
       (fun s ->
-        addReqFifo (random_id ()) (get_id s) (genAddr s) fifo;
+        try
+          let asked = (Hashtbl.find ens s).asked in
+          if asked < 5 then
+            begin
+              addReqFifo (get_id s) (get_id s) (genAddr s) fifo;
+              (Hashtbl.find ens s).asked <- asked + 1;
+              end
+        with
+          | Not_found ->
+              addReqFifo (get_id s) (get_id s) (genAddr s) fifo;
+              Hashtbl.add ens s {asked = 1; version_used = ""; truncated_t = false; answered = false}; 
       )
       answ.afn_nodes;
-    (* Printf.printf "Fifo size : %d\n%!" (FIFO.size fifo); *)
   with
     | (Bad_Answer _) -> ()
     |  Not_found ->  Printf.printf "Erreur interne\n";
@@ -119,21 +136,30 @@ let rec envoie socket bencoded serv_addr =
 let bootStrapId = String.make 20 '0';;
       
 let rec receive_requests requetes socket= 
-  let (f1, f2, f3) = select [socket] [] [] 0. in
+  let (f1, f2, f3) =
+    let rec aux () =
+      try
+        select [socket] [] [] 0.
+      with
+        | (Unix_error (EINTR,_,_)) -> aux ()
+    in
+    aux ()
+  in
   begin
     match f1 with
       |[] ->
           let n = (Hashtbl.length ens) in
-          let timeR = 0.0 in
+          let timeR = 1.0 in
           if (Unix.time ()) -. !statTimer >= timeR then
             begin
               statTimer := Unix.time ();
               Printf.printf "Nous avons un set qui a une taille de %i\n" n;
+              Printf.printf "Fifo size : %d\n%!" (FIFO.size requetes); 
               Printf.printf "Vitesse : %F\n%!"
                 (((float_of_int n) -. !lastCard) /. (if timeR = 0.0 then 1.0 else timeR));
               lastCard := float_of_int n;
             end;
-          if true
+          if n <= 1000000
           then (send_requests requetes socket)
           else ()
       |[socket] -> begin handleReadySocket socket requetes; receive_requests requetes socket end
@@ -143,23 +169,23 @@ let rec receive_requests requetes socket=
 and send_requests requetes socket= 
   let compteur = ref 0 in
   if FIFO.empty requetes then
-    for i=0 to 25000 do
-      addReqFifo (random_id ()) bootStrapId !addrBootstrap requetes
+    for i=0 to 499 do
+      addReqFifo (random_id ()) bootStrapId !addrBootstrap requetes;
     done;
-  while (not(FIFO.empty requetes) && !compteur < 30000) do
+  while (not(FIFO.empty requetes) && !compteur < 500) do
 
       let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
-        (* Printf.printf "Sending to %S\n%!" id_node; *)
+        (*Printf.printf "Sending to %S\n%!" id_node;*) 
       try
-        envoie socket bencoded serv_addr;
-        begin
-          try 
-	   (Hashtbl.find ens id_node).asked <- true;
-          with Not_found -> 
-            begin
-	      Hashtbl.add ens id_node {asked = true; version_used = ""; truncated_t = false; answered = false; };
-            end;
-        end;
+         envoie socket bencoded serv_addr;
+        (* begin *)
+        (*   try  *)
+	(*    ignore ((Hashtbl.find ens id_node)) *)
+        (*   with Not_found ->  *)
+        (*     begin *)
+	(*       Hashtbl.add ens id_node {asked = 1; version_used = ""; truncated_t = false; answered = false; }; *)
+        (*     end; *)
+        (* end; *)
         incr compteur
     with | (Unix_error (EINVAL,_,_)) -> ();
   done;
@@ -170,7 +196,7 @@ and send_requests requetes socket=
 let main =
   let (addrinfo::_) = getaddrinfo "router.utorrent.com" "6881" [] in
   addrBootstrap := addrinfo.ai_addr;
-  let requetes = FIFO.make (int_of_float 10e5) in
+  let requetes = FIFO.make (int_of_float 10e6) in
   let s = socket PF_INET SOCK_DGRAM 0 in
   ourID := random_id ();
   let bencodedQuery =
