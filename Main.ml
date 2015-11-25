@@ -134,6 +134,32 @@ let rec envoie socket bencoded serv_addr =
   end;;
 
 let bootStrapId = String.make 20 '0';;
+
+let dumpStats () =
+  let hname = try Sys.argv.(1) with | _ -> "" in
+  let file = open_out (Printf.sprintf "DHTdata%s_%f" hname (Unix.time ())) in
+  let aux s n = (Char.code s.[n])*256 + (Char.code s.[n+1]) in
+  Hashtbl.iter
+    (fun id data ->
+      Printf.fprintf file
+        "%04x%04x%04x%04x%04x%04x%04x%04x%04x%04x %d %B %B %30S\n"
+        (aux id 0)
+        (aux id 2)
+        (aux id 4)
+        (aux id 6)
+        (aux id 8)
+        (aux id 10)
+        (aux id 12)
+        (aux id 14)
+        (aux id 16)
+        (aux id 18)
+        data.asked
+        data.answered
+        data.truncated_t
+        data.version_used
+    )
+    ens
+;;
       
 let rec receive_requests requetes socket= 
   let (f1, f2, f3) =
@@ -161,7 +187,7 @@ let rec receive_requests requetes socket=
             end;
           if n <= 1000000
           then (send_requests requetes socket)
-          else ()
+          else dumpStats ();
       |[socket] -> begin handleReadySocket socket requetes; receive_requests requetes socket end
       |_ -> begin Printf.printf "erreur interne!\n"; send_requests requetes socket end
   end
