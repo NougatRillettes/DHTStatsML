@@ -97,6 +97,7 @@ let handleReadySocket sck fifo =
     ensEntry.truncated_t <- (answ.afn_t != "789632145");
     (* Discover neighbors *)
     if (not ensEntry.answered) then (*on l'a mis à true 3 lignes au dessus*)
+(*pourquoi si il a pas répondu on lui redemande des voisins?!*)
       begin
         List.iter
           (fun s ->
@@ -109,15 +110,16 @@ let handleReadySocket sck fifo =
     List.iter
       (fun s ->
         try
-          let asked = (Hashtbl.find ens s).asked in
-          if asked < 5 then
+	  let new_node = (Hashtbl.find ens s) in
+          let asked = new_node.asked in
+          if (asked < 5) then
             begin
-              addReqFifo (get_id s) !ourID (genAddr s) fifo;
+              addReqFifo (random_id()) !ourID (genAddr s) fifo;
               (Hashtbl.find ens s).asked <- asked + 1;
               end
         with
           | Not_found ->
-              addReqFifo (get_id s) !ourID (genAddr s) fifo;
+              addReqFifo (random_id()) !ourID (genAddr s) fifo;
               Hashtbl.add ens s {asked = 1; version_used = ""; truncated_t = false; answered = false}; 
       )
       answ.afn_nodes;
@@ -203,7 +205,7 @@ let rec receive_requests requetes socket=
 and send_requests requetes socket= 
   let compteur = ref 0 in
   if FIFO.empty requetes then
-    for i=0 to 499 do
+    for i=0 to 3 do
       addReqFifo (random_id ()) bootStrapId !addrBootstrap requetes;
     done;
   while (not(FIFO.empty requetes) && !compteur < 1) do
@@ -236,7 +238,7 @@ let main =
   let bencodedQuery =
     bencodeQFindNode {
       qfn_id = !ourID;
-      qfn_t = "00";
+      qfn_t = "789632145";
       qfn_target = !ourID;
       qfn_want = 1;
     } in    
