@@ -219,7 +219,7 @@ let rec decoupe_nodes = function
   | "" -> []
   | s ->
       let n = String.length s in
-      (String.sub s 0 26)::(decoupe_nodes (String.sub s 21 (n-26)))
+      (String.sub s 0 26)::(decoupe_nodes (String.sub s 26 (n-26)))
 ;;
 
       
@@ -242,7 +242,10 @@ let bencoded_to_Find_NodesAnswer b=
 
 
 
-let get_ip s = String.sub s 20 4;;
+let get_ip s =
+  let aux n = string_of_int (Char.code (s.[20+n])) in
+  (String.concat "." (List.map aux [0;1;2;3]) : string)
+;;
 let get_port s = 
   let port = String.sub s 24 2 in
   (Char.code (port.[0]))*256 + (Char.code (port.[1]))

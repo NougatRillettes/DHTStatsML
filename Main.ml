@@ -41,6 +41,7 @@ let int_to_trans_num i =
 
 let trans_num = ref 1 ;;
 let ourID = ref "jihgfedbca9876543210";;
+let comptTMP = ref 0;;
 
 type node_info = 
   {
@@ -70,9 +71,11 @@ let addReqFifo target id addr fifo =
 ;;
 
 let handleReadySocket sck fifo =
+  incr comptTMP;
   let genAddr s =
     let ip = get_ip s in
     let port = get_port s in
+    Printf.printf "%s : %i\n" ip port;
     (*Printf.printf "Adding to FIFO : %S at %s:%d\n%!" (get_id s) ip port;*)
     ADDR_INET(inet_addr_of_string ip, port)
   in
@@ -165,7 +168,7 @@ let rec receive_requests requetes socket=
   let (f1, f2, f3) =
     let rec aux () =
       try
-        select [socket] [] [] 0.
+        select [socket] [] [] 0.01
       with
         | (Unix_error (EINTR,_,_)) -> aux ()
     in
@@ -180,12 +183,13 @@ let rec receive_requests requetes socket=
             begin
               statTimer := Unix.time ();
               Printf.printf "Nous avons un set qui a une taille de %i\n" n;
+              Printf.printf "Recus : %d" !comptTMP;
               Printf.printf "Fifo size : %d\n%!" (FIFO.size requetes); 
-              Printf.printf "Vitesse : %F\n%!"
+              Printf.printf "Vitesse : %F\n%!"                
                 (((float_of_int n) -. !lastCard) /. (if timeR = 0.0 then 1.0 else timeR));
               lastCard := float_of_int n;
             end;
-          if n <= 1000000
+          if n <= 5_000
           then (send_requests requetes socket)
           else dumpStats ();
       |[socket] -> begin handleReadySocket socket requetes; receive_requests requetes socket end
@@ -198,7 +202,7 @@ and send_requests requetes socket=
     for i=0 to 499 do
       addReqFifo (random_id ()) bootStrapId !addrBootstrap requetes;
     done;
-  while (not(FIFO.empty requetes) && !compteur < 500) do
+  while (not(FIFO.empty requetes) && !compteur < 1) do
 
       let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
         (*Printf.printf "Sending to %S\n%!" id_node;*) 
