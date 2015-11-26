@@ -23,6 +23,7 @@ type aFindNode = {
   afn_t : string;
   afn_id : string;
   afn_nodes : string list;
+  afn_nodes6 : string list;
   afn_v : string;
 }
 
