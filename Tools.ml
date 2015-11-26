@@ -48,10 +48,10 @@ let generateNeighbors s =
   let s' = String.copy s in
   let allOne = lnot 0 in
   let res = ref [] in
-  for i = 19 downto 0 do
+  for i = 19 downto 17 do
     let n = Char.code s'.[i] in
-    for j = 1 to 8 do
-      s'.[i] <- Char.chr ((n land (allOne lsl (j))) mod 256);
+    for j = 0 to 4 do
+      s'.[i] <- Char.chr ((n land (allOne lsl (2*j))) mod 256);
       let s'' = String.copy s' in
       res := s'' :: !res;
     done;

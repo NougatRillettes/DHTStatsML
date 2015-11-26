@@ -79,6 +79,7 @@ type aFindNode =
       afn_t : string;
       afn_id : string;
       afn_nodes : string list;
+      afn_nodes6 : string list;
       afn_v : string;
     };;
 
@@ -210,19 +211,36 @@ let rec decoupe_nodes = function
       (String.sub s 0 26)::(decoupe_nodes (String.sub s 26 (n-26)))
 ;;
 
+let rec decoupe_nodes6 = function
+  | "" -> []
+  | s ->
+      let n = String.length s in
+      (String.sub s 0 38)::(decoupe_nodes (String.sub s 38 (n-38)))
+;;
       
 
 let bencoded_to_Find_NodesAnswer b= 
   let (a, dic, v) = bencoded_to_idAndDicAndV b in
-  let num = bencoded_to_id b in 
-  try
-      let nodes = (List.assoc "nodes" dic) in 
+  let num = bencoded_to_id b in
+  let nodes = 
+    try      
       begin
-	match nodes with
-	|BString id_nodes -> {afn_t = a; afn_id = num; afn_nodes = (decoupe_nodes id_nodes); afn_v = v}
+	match (List.assoc "nodes" dic) with
+	|BString id_nodes -> decoupe_nodes id_nodes 
 	|BDic _ ->  raise (Bad_Answer "Contenu du champ nodes invalide")
       end
-    with Not_found -> {afn_t = a; afn_id = num; afn_nodes = []; afn_v = v}
+    with Not_found -> []
+  in
+  let nodes6 = 
+    try      
+      begin
+	match (List.assoc "nodes6" dic) with
+	|BString id_nodes -> decoupe_nodes6 id_nodes 
+	|BDic _ ->  raise (Bad_Answer "Contenu du champ nodes6 invalide")
+      end
+    with Not_found -> []
+  in
+  {afn_t = a; afn_id = num; afn_nodes = nodes; afn_nodes6 = nodes6; afn_v = v}
 ;;
 
 
