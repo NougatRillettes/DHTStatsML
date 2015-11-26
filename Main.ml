@@ -2,44 +2,8 @@ open Unix
 open Bencoding
 open Tools
 
-
-type interm = No | Interm of int;;
-
-type trans_id_info =
-  {
-    time : float; 
-    find_node : bool;
-    interm : interm;
-}
-
-type trans_id_info_case = None | Some of trans_id_info
-
-let currentTrans = Array.init 65537 (fun n -> None);;
-let index = ref 0;;
-
-let rec choose_trans_num () = 
-if (!index==65536) then index := 1 else index := !index+1;
-match (currentTrans.(!index)) with
-| None -> !index
-| Some info ->  begin 
-  if (Unix.time() > (info.time +. 3.)) 
-  then begin currentTrans.(!index) <- None; !index end
-  else choose_trans_num ()
-end
-
-
 let addrBootstrap = ref (ADDR_INET (inet_addr_of_string "82.221.103.244", 6881));;
 
-
-let int_to_trans_num i = 
-(*d'un entier vers un string de transaction number*)
-  let res = "aa" in 
-  res.[0] <- (Char.chr ((i-(i mod 256))/256));
-  res.[1] <- (Char.chr (i mod 256));
-  res
-;; 
-
-let trans_num = ref 1 ;;
 let ourID = ref "jihgfedbca9876543210";;
 let comptTMP = ref 0;;
 
@@ -75,7 +39,7 @@ let handleReadySocket sck fifo =
   let genAddr s =
     let ip = get_ip s in
     let port = get_port s in
-    Printf.printf "%s : %i\n" ip port;
+    (*Printf.printf "%s : %i\n" ip port;*)
     (*Printf.printf "Adding to FIFO : %S at %s:%d\n%!" (get_id s) ip port;*)
     ADDR_INET(inet_addr_of_string ip, port)
   in
@@ -87,24 +51,24 @@ let handleReadySocket sck fifo =
       try
         (Hashtbl.find ens answ.afn_id)
       with
-        | Not_found ->
+        | Not_found ->begin 
+	  Printf.printf "pas normal, reçu réponse d'un noeud que je ne connais pas\n";
             Hashtbl.add ens answ.afn_id {asked = 0; version_used = ""; truncated_t = false; answered = true};
             (Hashtbl.find ens answ.afn_id);
+	end
     in
     (*Printf.printf "Receiving from %S\n%!" answ.afn_id; *)
-    ensEntry.answered <- true;
     ensEntry.version_used <- answ.afn_v;
     ensEntry.truncated_t <- (answ.afn_t != "789632145");
     (* Discover neighbors *)
-    if (not ensEntry.answered) then (*on l'a mis à true 3 lignes au dessus*)
-(*pourquoi si il a pas répondu on lui redemande des voisins?!*)
+    if not ensEntry.answered then
       begin
-        List.iter
-          (fun s ->
-            addReqFifo s !ourID addrFrom fifo
-          )
-          (generateNeighbors answ.afn_id);
-        ensEntry.answered <- true;
+    	List.iter
+    	  (fun s ->
+            addReqFifo s answ.afn_id addrFrom fifo
+    	  )
+    	  (generateNeighbors answ.afn_id);
+    	ensEntry.answered <- true;
       end;
     (* Probe given nodes *)
     List.iter
@@ -112,20 +76,15 @@ let handleReadySocket sck fifo =
         try
 	  let new_node = (Hashtbl.find ens s) in
           let asked = new_node.asked in
-          if (asked < 5) then
-            begin
-              addReqFifo (random_id()) !ourID (genAddr s) fifo;
-              (Hashtbl.find ens s).asked <- asked + 1;
-              end
+          if (asked < 5) then addReqFifo (random_id()) (get_id s) (genAddr s) fifo;
         with
           | Not_found ->
-              addReqFifo (random_id()) !ourID (genAddr s) fifo;
-              Hashtbl.add ens s {asked = 1; version_used = ""; truncated_t = false; answered = false}; 
+              addReqFifo (random_id()) (get_id s) (genAddr s) fifo;
       )
       answ.afn_nodes;
   with
+    | Bad_Answer s ->  Printf.printf "Erreur de parsing; %s\n" s;
     | _ -> ()
-    |  Not_found ->  Printf.printf "Erreur interne\n";
 ;;
 
 let rec envoie socket bencoded serv_addr = 
@@ -195,7 +154,7 @@ let rec receive_requests requetes socket=
                 (((float_of_int n) -. !lastCard) /. (if timeR = 0.0 then 1.0 else timeR));
               lastCard := float_of_int n;
             end;
-          if n <= 5_000
+          if true
           then (send_requests requetes socket)
           else dumpStats ();
       |[socket] -> begin handleReadySocket socket requetes; receive_requests requetes socket end
@@ -206,28 +165,30 @@ and send_requests requetes socket=
   let compteur = ref 0 in
   if FIFO.empty requetes then
     for i=0 to 3 do
-      addReqFifo (random_id ()) bootStrapId !addrBootstrap requetes;
+      addReqFifo (random_id ()) !ourID !addrBootstrap requetes;
     done;
   while (not(FIFO.empty requetes) && !compteur < 1) do
-
-      let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
-        (*Printf.printf "Sending to %S\n%!" id_node;*) 
+    let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
+    (* Printf.printf "Sending to %S\n%!" id_node; *)
+    begin
+      try 
+	let new_node = Hashtbl.find ens id_node in
+	new_node.asked <- new_node.asked +1;
+      with Not_found -> 
+	begin
+	  Hashtbl.add ens id_node {asked = 1; version_used = ""; truncated_t = false; answered = false; };
+	end;
+    end;
+    begin
       try
-         envoie socket bencoded serv_addr;
-        (* begin *)
-        (*   try  *)
-	(*    ignore ((Hashtbl.find ens id_node)) *)
-        (*   with Not_found ->  *)
-        (*     begin *)
-	(*       Hashtbl.add ens id_node {asked = 1; version_used = ""; truncated_t = false; answered = false; }; *)
-        (*     end; *)
-        (* end; *)
-        incr compteur
-    with | (Unix_error (EINVAL,_,_)) -> ();
+	envoie socket bencoded serv_addr;
+	incr compteur
+      with | (Unix_error (EINVAL,_,_)) -> ();
+    end;    
   done;
   receive_requests requetes socket
 ;;
-    
+
 
 let main =
   let (addrinfo::_) = getaddrinfo "router.utorrent.com" "6881" [] in
@@ -239,10 +200,10 @@ let main =
     bencodeQFindNode {
       qfn_id = !ourID;
       qfn_t = "789632145";
-      qfn_target = !ourID;
+      qfn_target = random_id();
       qfn_want = 1;
     } in    
-  ignore ( sendto s bencodedQuery 0 (String.length bencodedQuery) [] !addrBootstrap); 
+  envoie s bencodedQuery !addrBootstrap;
   let buffer_reponse = String.create 1500 in
   ignore ( recvfrom s buffer_reponse 0 1500 []);
   let bootStrapId' =  bencoded_to_id (parser buffer_reponse) in

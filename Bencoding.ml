@@ -133,24 +133,13 @@ let parser s =
           
 (* Bencoded to answer *)
 
-
-let verif_champ_y l = 
-  try 
-    let y = List.assoc "y" l in
-      begin
-	match y with
-	|BString "r" -> ()
-	|BString _ -> raise (Bad_Answer "Contenu du champ y invalide")
-	|BDic _ -> raise (Bad_Answer "Contenu du champ y invalide")
-      end;
-  with Not_found -> raise (Bad_Answer "Champ y manquant dans la réponse dans la reponse")
-    
+ 
 
 let verif_champ_t l = 
   try 
-    let y = List.assoc "y" l in
+    let t = List.assoc "t" l in
     begin
-      match y with
+      match t with
 	|BString a -> a
 	|BDic _ -> raise (Bad_Answer "Contenu du champ t invalide")
     end;
@@ -165,7 +154,7 @@ let verif_champ_r l =
       |BString _ ->  raise (Bad_Answer "Contenu du champ r invalide")
       |BDic dic -> dic
     end
-  with Not_found -> raise (Bad_Answer "Champ r manquant dans la réponse dans la reponse")
+  with Not_found -> raise (Bad_Answer "Champ r manquant dans la reponse")
     
 let verif_champ_v l =
   try
@@ -184,7 +173,6 @@ let bencoded_to_idAndDicAndV b =
   match b with
   |BString _-> raise (Bad_Answer "La réponse n'est pas un BDic")
   |BDic l -> begin
-    verif_champ_y l; 
     let a = verif_champ_t l in
     let dic = verif_champ_r l in
     let v = verif_champ_v l in
@@ -223,21 +211,18 @@ let rec decoupe_nodes = function
 ;;
 
       
-      
+
 let bencoded_to_Find_NodesAnswer b= 
   let (a, dic, v) = bencoded_to_idAndDicAndV b in
-  if (List.length dic != 2) 
-  then raise (Bad_Answer "Longueur du champ r invalide")
-  else 
-      let num = bencoded_to_id b in 
-      try
-	let nodes = (List.assoc "nodes" dic) in 
-	begin
-	  match nodes with
-	  |BString id_nodes -> {afn_t = a; afn_id = num; afn_nodes = (decoupe_nodes id_nodes); afn_v = v}
-	  |BDic _ ->  raise (Bad_Answer "Contenu du champ nodes invalide")
-	end
-      with Not_found -> raise (Bad_Answer "Champ nodes manquant dans la réponse")
+  let num = bencoded_to_id b in 
+  try
+      let nodes = (List.assoc "nodes" dic) in 
+      begin
+	match nodes with
+	|BString id_nodes -> {afn_t = a; afn_id = num; afn_nodes = (decoupe_nodes id_nodes); afn_v = v}
+	|BDic _ ->  raise (Bad_Answer "Contenu du champ nodes invalide")
+      end
+    with Not_found -> {afn_t = a; afn_id = num; afn_nodes = []; afn_v = v}
 ;;
 
 
