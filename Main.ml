@@ -96,11 +96,11 @@ let handleReadySocket sck fifo =
     ensEntry.version_used <- answ.afn_v;
     ensEntry.truncated_t <- (answ.afn_t != "789632145");
     (* Discover neighbors *)
-    if (not ensEntry.answered) then
+    if (not ensEntry.answered) then (*on l'a mis à true 3 lignes au dessus*)
       begin
         List.iter
           (fun s ->
-            addReqFifo s answ.afn_id addrFrom fifo
+            addReqFifo s !ourID addrFrom fifo
           )
           (generateNeighbors answ.afn_id);
         ensEntry.answered <- true;
@@ -112,12 +112,12 @@ let handleReadySocket sck fifo =
           let asked = (Hashtbl.find ens s).asked in
           if asked < 5 then
             begin
-              addReqFifo (get_id s) (get_id s) (genAddr s) fifo;
+              addReqFifo (get_id s) !ourID (genAddr s) fifo;
               (Hashtbl.find ens s).asked <- asked + 1;
               end
         with
           | Not_found ->
-              addReqFifo (get_id s) (get_id s) (genAddr s) fifo;
+              addReqFifo (get_id s) !ourID (genAddr s) fifo;
               Hashtbl.add ens s {asked = 1; version_used = ""; truncated_t = false; answered = false}; 
       )
       answ.afn_nodes;
@@ -183,6 +183,10 @@ let rec receive_requests requetes socket=
             begin
               statTimer := Unix.time ();
               Printf.printf "Nous avons un set qui a une taille de %i\n" n;
+	      let noeuds_qui_ont_repondu = ref 0 in 
+	      Hashtbl.iter (fun x y -> if (y.answered) then incr noeuds_qui_ont_repondu) ens;
+	      Printf.printf "Noeud qui nous ont répondu: %i\n" (!noeuds_qui_ont_repondu);
+	      Printf.printf "Donc pourcentage de réponses : %i\n" ((!noeuds_qui_ont_repondu)*100/n);
               Printf.printf "Recus : %d" !comptTMP;
               Printf.printf "Fifo size : %d\n%!" (FIFO.size requetes); 
               Printf.printf "Vitesse : %F\n%!"                
