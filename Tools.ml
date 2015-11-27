@@ -45,17 +45,30 @@ let random_id () =
 ;;
 
 let generateNeighbors s =
-  let s' = String.copy s in
-  let allOne = lnot 0 in
-  let res = ref [] in
-  for i = 19 downto 17 do
-    let n = Char.code s'.[i] in
-    for j = 0 to 4 do
-      s'.[i] <- Char.chr ((n land (allOne lsl (2*j))) mod 256);
-      let s'' = String.copy s' in
-      res := s'' :: !res;
-    done;
-  done;
-  !res
-;;
-    
+  let rec aux = function
+    | 0 -> []
+    | n -> (random_id ())::(aux (n-1))
+  in
+  aux 1;;
+(*   let s' = String.copy s in *)
+(*   let allOne = lnot 0 in *)
+(*   let res = ref [] in *)
+(*   for i = 19 downto 17 do *)
+(*     let n = Char.code s'.[i] in *)
+(*     for j = 0 to 4 do *)
+(*       s'.[i] <- Char.chr ((n land (allOne lsl (2*j))) mod 256); *)
+(*       let s'' = String.copy s' in *)
+(*       res := s'' :: !res; *)
+(*     done; *)
+(*   done; *)
+(*   !res *)
+(* ;; *)
+(*   let res = ref [] in *)
+(*   for i = 19 downto 0 do *)
+(*     let n = Char.code s.[i] in *)
+(*     let s' = String.copy s in *)
+(*     s'.[i] <- Char.chr 0; *)
+(*     res := s' :: !res; *)
+(*   done; *)
+(*   !res *)
+(* ;; *)

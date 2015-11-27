@@ -53,7 +53,7 @@ let handleReadySocket sck fifo =
         (Hashtbl.find ens answ.afn_id)
       with
         | Not_found ->begin 
-	  Printf.printf "pas normal, reçu réponse d'un noeud que je ne connais pas\n";
+
             Hashtbl.add ens answ.afn_id {asked = 0; version_used = ""; truncated_t = false; answered = true; bep32 = false};
             (Hashtbl.find ens answ.afn_id);
 	end
@@ -85,7 +85,7 @@ let handleReadySocket sck fifo =
       )
       answ.afn_nodes;
   with
-    | Bad_Answer s ->  Printf.printf "Erreur de parsing; %s\n" s;
+    | Bad_Answer s ->  ();
     | _ -> ()
 ;;
 
@@ -131,7 +131,7 @@ let rec receive_requests requetes socket=
   let (f1, f2, f3) =
     let rec aux () =
       try
-        select [socket] [] [] 0.01
+        select [socket] [] [] 1e-6
       with
         | (Unix_error (EINTR,_,_)) -> aux ()
     in
@@ -156,8 +156,8 @@ let rec receive_requests requetes socket=
 		ens;
 	      Printf.printf "Noeud qui nous ont répondu: %i dont ipv6 : %i\n" (!noeuds_qui_ont_repondu) (!noeuds_bep32);
 	      Printf.printf "Donc pourcentage de réponses : %i dont ipv6 : %i\n" ((!noeuds_qui_ont_repondu)*100/n) ((!noeuds_bep32*100)/n);
-              Printf.printf "Recus : %d" !comptTMP;
-              Printf.printf "Fifo size : %d\n%!" (FIFO.size requetes); 
+              Printf.printf "Recus : %d\n" !comptTMP;
+              Printf.printf "Fifo size : %d\n" (FIFO.size requetes); 
               Printf.printf "Vitesse : %F\n%!"                
                 (((float_of_int n) -. !lastCard) /. (if timeR = 0.0 then 1.0 else timeR));
               lastCard := float_of_int n;
@@ -201,8 +201,9 @@ and send_requests requetes socket=
 let main =
   let (addrinfo::_) = getaddrinfo "router.utorrent.com" "6881" [] in
   addrBootstrap := addrinfo.ai_addr;
-  let requetes = FIFO.make (int_of_float 1e5) in
+  let requetes = FIFO.make (int_of_float 1e2) in
   let s = socket PF_INET SOCK_DGRAM 0 in
+  Unix.setsockopt_int s SO_SNDBUF (512*1024*1024*1024);
   ourID := random_id ();
   let bencodedQuery =
     bencodeQFindNode {
