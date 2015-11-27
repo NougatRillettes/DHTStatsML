@@ -175,7 +175,7 @@ and send_requests requetes socket=
     for i=0 to 3 do
       addReqFifo (random_id ()) !ourID !addrBootstrap requetes;
     done;
-  while (not(FIFO.empty requetes) && !compteur < 1) do
+  while (not(FIFO.empty requetes) && !compteur < 10) do
     let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
     (* Printf.printf "Sending to %S\n%!" id_node; *)
     begin
@@ -191,7 +191,9 @@ and send_requests requetes socket=
       try
 	envoie socket bencoded serv_addr;
 	incr compteur
-      with | (Unix_error (EINVAL,_,_)) -> ();
+      with
+        | (Unix_error (EINVAL,_,_)) -> ();
+        | (Unix_error (_,"sendto","")) -> ();
     end;    
   done;
   receive_requests requetes socket
