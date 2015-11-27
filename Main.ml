@@ -18,10 +18,11 @@ type node_info =
 
 module NodeInfoMap = Map.Make(String) ;;
 let ens = Hashtbl.create 500000;;
+let mens = Mutex.create ();;
 
 
 let statTimer = ref (Unix.time ());;
-let lastCard = ref 0.0;;
+let lastCard = ref 0;;
 
 let addReqFifo target id addr fifo =
    let query =
@@ -48,14 +49,15 @@ let handleReadySocket sck fifo =
   let (_,addrFrom) = (recvfrom sck readBuf 0 1500 []) in
   try
     let answ = bencoded_to_Find_NodesAnswer (parser readBuf) in
+    Mutex.lock mens;
     let ensEntry =
       try
         (Hashtbl.find ens answ.afn_id)
       with
         | Not_found ->begin 
-
-            Hashtbl.add ens answ.afn_id {asked = 0; version_used = ""; truncated_t = false; answered = true; bep32 = false};
-            (Hashtbl.find ens answ.afn_id);
+          
+          Hashtbl.add ens answ.afn_id {asked = 0; version_used = ""; truncated_t = false; answered = true; bep32 = false};
+          (Hashtbl.find ens answ.afn_id);
 	end
     in
     (*Printf.printf "Receiving from %S\n%!" answ.afn_id; *)
@@ -84,9 +86,10 @@ let handleReadySocket sck fifo =
               addReqFifo (random_id()) (get_id s) (genAddr s) fifo;
       )
       answ.afn_nodes;
+    Mutex.unlock mens;
   with
-    | Bad_Answer s ->  ();
-    | _ -> ()
+    | Bad_Answer s ->  ();   
+    | _ -> ();
 ;;
 
 let rec envoie socket bencoded serv_addr = 
@@ -131,7 +134,7 @@ let rec receive_requests requetes socket=
   let (f1, f2, f3) =
     let rec aux () =
       try
-        select [socket] [] [] 1e-6
+        select [socket] [] [] 1e-3
       with
         | (Unix_error (EINTR,_,_)) -> aux ()
     in
@@ -140,28 +143,7 @@ let rec receive_requests requetes socket=
   begin
     match f1 with
       |[] ->
-          let n = (Hashtbl.length ens) in
-          let timeR = 1.0 in
-          if (Unix.time ()) -. !statTimer >= timeR then
-            begin
-              statTimer := Unix.time ();
-              Printf.printf "Nous avons un set qui a une taille de %i\n" n;
-	      let noeuds_qui_ont_repondu = ref 0 in
-	      let noeuds_bep32 = ref 0 in
-	      Hashtbl.iter 
-		(fun x y -> 
-		  if (y.answered) then incr noeuds_qui_ont_repondu;
-		  if y.bep32 then incr noeuds_bep32;
-		) 
-		ens;
-	      Printf.printf "Noeud qui nous ont répondu: %i dont ipv6 : %i\n" (!noeuds_qui_ont_repondu) (!noeuds_bep32);
-	      Printf.printf "Donc pourcentage de réponses : %i dont ipv6 : %i\n" ((!noeuds_qui_ont_repondu)*100/n) ((!noeuds_bep32*100)/n);
-              Printf.printf "Recus : %d\n" !comptTMP;
-              Printf.printf "Fifo size : %d\n" (FIFO.size requetes); 
-              Printf.printf "Vitesse : %F\n%!"                
-                (((float_of_int n) -. !lastCard) /. (if timeR = 0.0 then 1.0 else timeR));
-              lastCard := float_of_int n;
-            end;
+          (*let n = (Hashtbl.length ens) in*)
           if true
           then (send_requests requetes socket)
           else dumpStats ();
@@ -178,6 +160,7 @@ and send_requests requetes socket=
   while (not(FIFO.empty requetes) && !compteur < 1) do
     let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
     (* Printf.printf "Sending to %S\n%!" id_node; *)
+    Mutex.lock mens;
     begin
       try 
 	let new_node = Hashtbl.find ens id_node in
@@ -187,6 +170,7 @@ and send_requests requetes socket=
 	  Hashtbl.add ens id_node {asked = 1; version_used = ""; truncated_t = false; answered = false; bep32 = false};
 	end;
     end;
+    Mutex.unlock mens;
     begin
       try
 	envoie socket bencoded serv_addr;
@@ -198,12 +182,40 @@ and send_requests requetes socket=
 ;;
 
 
+let rec intermStats () =
+  let timeR = 1 in
+  Unix.sleep timeR;
+  Mutex.lock mens;
+  let n = max 1 (Hashtbl.length ens) in
+  Printf.printf "Nous avons un set qui a une taille de %i\n" n;
+  let noeuds_qui_ont_repondu = ref 0 in
+  let noeuds_bep32 = ref 0 in
+  Hashtbl.iter 
+    (fun x y -> 
+      if (y.answered) then incr noeuds_qui_ont_repondu;
+      if y.bep32 then incr noeuds_bep32;
+    ) 
+    ens;
+  Mutex.unlock mens;
+  Printf.printf "Noeud qui nous ont répondu: %i dont ipv6 : %i\n" (!noeuds_qui_ont_repondu) (!noeuds_bep32);
+  Printf.printf "Donc pourcentage de réponses : %i dont ipv6 : %i\n" ((!noeuds_qui_ont_repondu)*100/n) ((!noeuds_bep32*100)/n);
+  Printf.printf "Recus : %d\n" !comptTMP;
+  Printf.printf "Vitesse : %i\n%!" ((n - !lastCard) / timeR);
+  lastCard := n;
+  intermStats ()
+;;
+
 let main =
+  Thread.create intermStats ();
   let (addrinfo::_) = getaddrinfo "router.utorrent.com" "6881" [] in
   addrBootstrap := addrinfo.ai_addr;
-  let requetes = FIFO.make (int_of_float 1e2) in
+  let genArgs () = 
+    let requetes = FIFO.make (int_of_float 1e2) in
+    let sck = socket PF_INET SOCK_DGRAM 0 in
+    Unix.setsockopt_int sck SO_SNDBUF (512*1024*1024*1024);
+    (requetes,sck)
+  in
   let s = socket PF_INET SOCK_DGRAM 0 in
-  Unix.setsockopt_int s SO_SNDBUF (512*1024*1024*1024);
   ourID := random_id ();
   let bencodedQuery =
     bencodeQFindNode {
@@ -215,9 +227,18 @@ let main =
   envoie s bencodedQuery !addrBootstrap;
   let buffer_reponse = String.create 1500 in
   ignore ( recvfrom s buffer_reponse 0 1500 []);
+  close(s);
   let bootStrapId' =  bencoded_to_id (parser buffer_reponse) in
   for i = 0 to 19 do
     bootStrapId.[i] <- bootStrapId'.[i];
   done;
-  send_requests requetes s
+  let nThread = 100 in
+  let arrT = Array.make nThread (Thread.self ()) in
+  for i = 1 to nThread do
+    let (r,sck) = genArgs () in
+    arrT.(i-1) <- Thread.create (send_requests r) sck;
+  done;
+  for i = 0 to nThread - 1 do
+    Thread.join arrT.(i);
+  done;
 ;;
