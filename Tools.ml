@@ -1,5 +1,7 @@
 (* Compact node Info Handlers *)
 
+open Unix;;
+
 let get_id s = String.sub s 0 20;;
 
 let get_ip s =
@@ -42,6 +44,13 @@ let random_id () =
   done;
   incr rndCount;
   buf
+;;
+
+let genArgs () = 
+  let requetes = FIFO.make (int_of_float 1e2) in
+  let sck = socket PF_INET SOCK_DGRAM 0 in
+  Unix.setsockopt_int sck SO_SNDBUF (512*1024*1024*1024);
+  (requetes,sck)
 ;;
 
 let generateNeighbors s =

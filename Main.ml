@@ -134,7 +134,7 @@ let rec receive_requests requetes socket=
   let (f1, f2, f3) =
     let rec aux () =
       try
-        select [socket] [] [] 1e-3
+        select [socket] [] [] 1e-3;
       with
         | (Unix_error (EINTR,_,_)) -> aux ()
     in
@@ -175,10 +175,20 @@ and send_requests requetes socket=
       try
 	envoie socket bencoded serv_addr;
 	incr compteur
-      with | (Unix_error (EINVAL,_,_)) -> ();
+      with
+        | (Unix_error (EINVAL,_,_)) -> ();
+        | (Unix_error (_,"sendto","")) -> ();
     end;    
   done;
-  receive_requests requetes socket
+  if FIFO.seen requetes >= 50_000 then
+    begin
+      Printf.printf "Refresh !\n";
+      close socket;
+      let (r,sck) = genArgs () in
+      send_requests r sck;
+    end
+  else
+    receive_requests requetes socket;
 ;;
 
 
@@ -205,16 +215,12 @@ let rec intermStats () =
   intermStats ()
 ;;
 
+
+
 let main =
   Thread.create intermStats ();
   let (addrinfo::_) = getaddrinfo "router.utorrent.com" "6881" [] in
   addrBootstrap := addrinfo.ai_addr;
-  let genArgs () = 
-    let requetes = FIFO.make (int_of_float 1e2) in
-    let sck = socket PF_INET SOCK_DGRAM 0 in
-    Unix.setsockopt_int sck SO_SNDBUF (512*1024*1024*1024);
-    (requetes,sck)
-  in
   let s = socket PF_INET SOCK_DGRAM 0 in
   ourID := random_id ();
   let bencodedQuery =
@@ -232,7 +238,7 @@ let main =
   for i = 0 to 19 do
     bootStrapId.[i] <- bootStrapId'.[i];
   done;
-  let nThread = 100 in
+  let nThread = 5 in
   let arrT = Array.make nThread (Thread.self ()) in
   for i = 1 to nThread do
     let (r,sck) = genArgs () in
