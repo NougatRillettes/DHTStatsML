@@ -65,11 +65,11 @@ let handleReadySocket sck fifo =
     (* Discover neighbors *)
     if not ensEntry.answered then
       begin
-    	List.iter
-    	  (fun s ->
-            addReqFifo s answ.afn_id addrFrom fifo
-    	  )
-    	  (generateNeighbors answ.afn_id);
+    	(* List.iter *)
+    	(*   (fun s -> *)
+        (*     addReqFifo s answ.afn_id addrFrom fifo *)
+    	(*   ) *)
+    	(*   (generateNeighbors answ.afn_id); *)
     	ensEntry.answered <- true;
       end;
     (* Probe given nodes *)
@@ -102,27 +102,33 @@ let rec envoie socket bencoded serv_addr =
 let bootStrapId = String.make 20 '0';;
 
 let dumpStats () =
-  let hname = try Sys.argv.(1) with | _ -> "" in
+  let hname = try
+                Sys.argv.(1)
+    with | _ -> ""
+  in
   let file = open_out (Printf.sprintf "DHTdata%s_%f" hname (Unix.time ())) in
   let aux s n = (Char.code s.[n])*256 + (Char.code s.[n+1]) in
   Hashtbl.iter
     (fun id data ->
-      Printf.fprintf file
-        "%04x%04x%04x%04x%04x%04x%04x%04x%04x%04x %d %B %B %30S\n"
-        (aux id 0)
-        (aux id 2)
-        (aux id 4)
-        (aux id 6)
-        (aux id 8)
-        (aux id 10)
-        (aux id 12)
-        (aux id 14)
-        (aux id 16)
-        (aux id 18)
-        data.asked
-        data.answered
-        data.truncated_t
-        data.version_used
+      try
+        Printf.fprintf file
+          "%04x%04x%04x%04x%04x%04x%04x%04x%04x%04x %d %B %B %30S\n"
+          (aux id 0)
+          (aux id 2)
+          (aux id 4)
+          (aux id 6)
+          (aux id 8)
+          (aux id 10)
+          (aux id 12)
+          (aux id 14)
+          (aux id 16)
+          (aux id 18)
+          data.asked
+          data.answered
+          data.truncated_t
+          data.version_used
+      with
+        | _ -> ()
     )
     ens
 ;;
@@ -131,7 +137,7 @@ let rec receive_requests requetes socket=
   let (f1, f2, f3) =
     let rec aux () =
       try
-        select [socket] [] [] 1e-6
+        select [socket] [] [] 0.0;
       with
         | (Unix_error (EINTR,_,_)) -> aux ()
     in
@@ -141,7 +147,7 @@ let rec receive_requests requetes socket=
     match f1 with
       |[] ->
           let n = (Hashtbl.length ens) in
-          let timeR = 1.0 in
+          let timeR = 5.0 in
           if (Unix.time ()) -. !statTimer >= timeR then
             begin
               statTimer := Unix.time ();
@@ -162,7 +168,7 @@ let rec receive_requests requetes socket=
                 (((float_of_int n) -. !lastCard) /. (if timeR = 0.0 then 1.0 else timeR));
               lastCard := float_of_int n;
             end;
-          if true
+          if n <= 200_000
           then (send_requests requetes socket)
           else dumpStats ();
       |[socket] -> begin handleReadySocket socket requetes; receive_requests requetes socket end
@@ -175,7 +181,7 @@ and send_requests requetes socket=
     for i=0 to 3 do
       addReqFifo (random_id ()) !ourID !addrBootstrap requetes;
     done;
-  while (not(FIFO.empty requetes) && !compteur < 10) do
+  while (not(FIFO.empty requetes) && !compteur < 1) do
     let (bencoded, serv_addr, id_node) = FIFO.pop requetes in
     (* Printf.printf "Sending to %S\n%!" id_node; *)
     begin
@@ -196,8 +202,18 @@ and send_requests requetes socket=
         | (Unix_error (_,"sendto","")) -> ();
     end;    
   done;
-  receive_requests requetes socket
+  if FIFO.seen requetes >= 10_000_000 then
+    begin
+      Printf.printf "Refresh !%!\n";
+      close socket;
+      let r = FIFO.make (int_of_float 1e3) in
+      let sck = Unix.socket PF_INET SOCK_DGRAM 0 in
+      send_requests r sck;
+    end
+  else
+    receive_requests requetes socket;
 ;;
+
 
 
 let main =
@@ -205,7 +221,7 @@ let main =
   addrBootstrap := addrinfo.ai_addr;
   let requetes = FIFO.make (int_of_float 1e2) in
   let s = socket PF_INET SOCK_DGRAM 0 in
-  Unix.setsockopt_int s SO_SNDBUF (512*1024*1024*1024);
+(*  Unix.setsockopt_int s SO_RCVBUF (512*1024*1024);*)
   ourID := random_id ();
   let bencodedQuery =
     bencodeQFindNode {
