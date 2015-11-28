@@ -27,10 +27,10 @@ let reverseString s =
 ;;
 
 let seeds = Array.make 20 0;;
-let rndCount = ref 100;;
+let rndCount = ref 1;;
 
 let random_id () =
-  if !rndCount = 100 then
+  if !rndCount = 1 then
     begin
       for i = 0 to 19 do
         seeds.(i) <- Random.int 256;
@@ -47,9 +47,9 @@ let random_id () =
 ;;
 
 let genArgs () = 
-  let requetes = FIFO.make (int_of_float 1e2) in
+  let requetes = FIFO.make (int_of_float 1e3) in
   let sck = socket PF_INET SOCK_DGRAM 0 in
-  Unix.setsockopt_int sck SO_SNDBUF (512*1024*1024*1024);
+(*  Unix.setsockopt_int sck SO_SNDBUF (512*1024*1024*1024);*)
   (requetes,sck)
 ;;
 

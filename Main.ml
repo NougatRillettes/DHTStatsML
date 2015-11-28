@@ -17,12 +17,13 @@ type node_info =
 }
 
 module NodeInfoMap = Map.Make(String) ;;
-let ens = Hashtbl.create 500000;;
+let ens = Hashtbl.create 3_000_000;;
 let mens = Mutex.create ();;
 
 
 let statTimer = ref (Unix.time ());;
 let lastCard = ref 0;;
+let endTimer = Unix.time ();;
 
 let addReqFifo target id addr fifo =
    let query =
@@ -134,7 +135,7 @@ let rec receive_requests requetes socket=
   let (f1, f2, f3) =
     let rec aux () =
       try
-        select [socket] [] [] 1e-3;
+        select [socket] [] [] 0.0;
       with
         | (Unix_error (EINTR,_,_)) -> aux ()
     in
@@ -144,9 +145,9 @@ let rec receive_requests requetes socket=
     match f1 with
       |[] ->
           (*let n = (Hashtbl.length ens) in*)
-          if true
+          if (Unix.time ()) -. endTimer <= 1200.
           then (send_requests requetes socket)
-          else dumpStats ();
+          else begin close socket; Thread.exit () end;
       |[socket] -> begin handleReadySocket socket requetes; receive_requests requetes socket end
       |_ -> begin Printf.printf "erreur interne!\n"; send_requests requetes socket end
   end
@@ -180,7 +181,7 @@ and send_requests requetes socket=
         | (Unix_error (_,"sendto","")) -> ();
     end;    
   done;
-  if FIFO.seen requetes >= 50_000 then
+  if FIFO.seen requetes >= 800_000 then
     begin
       Printf.printf "Refresh !\n";
       close socket;
@@ -238,7 +239,7 @@ let main =
   for i = 0 to 19 do
     bootStrapId.[i] <- bootStrapId'.[i];
   done;
-  let nThread = 5 in
+  let nThread = 6 in
   let arrT = Array.make nThread (Thread.self ()) in
   for i = 1 to nThread do
     let (r,sck) = genArgs () in
@@ -247,4 +248,5 @@ let main =
   for i = 0 to nThread - 1 do
     Thread.join arrT.(i);
   done;
+  dumpStats ();
 ;;
