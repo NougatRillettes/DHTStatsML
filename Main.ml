@@ -63,7 +63,7 @@ let handleReadySocket sck fifo =
     in
     (*Printf.printf "Receiving from %S\n%!" answ.afn_id; *)
     ensEntry.version_used <- answ.afn_v;
-    ensEntry.truncated_t <- ensEntry.truncated_t || (answ.afn_t != "789632145");
+    ensEntry.truncated_t <- ensEntry.truncated_t || (not (answ.afn_t = "789632145"));
     ensEntry.bep32 <- ensEntry.bep32 || not(answ.afn_nodes6 = []);
     (* Discover neighbors *)
     if not ensEntry.answered then
@@ -111,23 +111,26 @@ let dumpStats () =
   let aux s n = (Char.code s.[n])*256 + (Char.code s.[n+1]) in
   Hashtbl.iter
     (fun id data ->
-      Printf.fprintf file
-        "%04x%04x%04x%04x%04x%04x%04x%04x%04x%04x %d %5B %5B %5B %30S\n"
-        (aux id 0)
-        (aux id 2)
-        (aux id 4)
-        (aux id 6)
-        (aux id 8)
-        (aux id 10)
-        (aux id 12)
-        (aux id 14)
-        (aux id 16)
-        (aux id 18)
-        data.asked
-        data.answered
-        data.truncated_t
-        data.bep32
-        data.version_used
+      try
+        Printf.fprintf file
+          "%04x%04x%04x%04x%04x%04x%04x%04x%04x%04x %d %5B %5B %5B %30S\n"
+          (aux id 0)
+          (aux id 2)
+          (aux id 4)
+          (aux id 6)
+          (aux id 8)
+          (aux id 10)
+          (aux id 12)
+          (aux id 14)
+          (aux id 16)
+          (aux id 18)
+          data.asked
+          data.answered
+          data.truncated_t
+          data.bep32
+          data.version_used
+      with
+        | _ -> ();
     )
     ens;
   let filestats = open_out (Printf.sprintf "DHTstats%s_%f" hname (Unix.time ())) in
@@ -175,7 +178,7 @@ let rec receive_requests requetes socket=
     match f1 with
       |[] ->
           (*let n = (Hashtbl.length ens) in*)
-          if (Unix.time ()) -. endTimer <= 1200.
+          if (Unix.time ()) -. endTimer <= 18.5*.60.
           then (send_requests requetes socket)
           else begin close socket; Thread.exit () end;
       |[socket] -> begin handleReadySocket socket requetes; receive_requests requetes socket end
