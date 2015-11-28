@@ -112,7 +112,7 @@ let dumpStats () =
   Hashtbl.iter
     (fun id data ->
       Printf.fprintf file
-        "%04x%04x%04x%04x%04x%04x%04x%04x%04x%04x %d %B %B %30S\n"
+        "%04x%04x%04x%04x%04x%04x%04x%04x%04x%04x %d %5B %5B %5B %30S\n"
         (aux id 0)
         (aux id 2)
         (aux id 4)
@@ -126,10 +126,40 @@ let dumpStats () =
         data.asked
         data.answered
         data.truncated_t
+        data.bep32
         data.version_used
     )
-    ens
+    ens;
+  let filestats = open_out (Printf.sprintf "DHTstats%s_%f" hname (Unix.time ())) in
+  let tailledeset = (Hashtbl.length ens) in
+  let noeuds_qui_ont_repondu = ref 0 in
+  let noeuds_bep32 = ref 0 in
+  let noeuds_truncated_t = ref 0 in
+  let noeuds_asked = ref 0 in
+  let set_versions = Hashtbl.create 100 in
+  Hashtbl.iter
+    (fun x y ->
+      if y.answered then incr noeuds_qui_ont_repondu;
+      if y.bep32 then incr noeuds_bep32;
+      if y.truncated_t then incr noeuds_truncated_t;
+      noeuds_asked := !noeuds_asked + y.asked;
+      begin
+	try
+          Hashtbl.replace set_versions y.version_used ((Hashtbl.find set_versions y.version_used)+1);
+	with
+	  Not_found -> Hashtbl.add set_versions y.version_used 1;
+      end
+    )
+    ens;
+  Printf.fprintf filestats "%i\n" tailledeset; (*taille de l'ensemble*)
+  Printf.fprintf filestats "%i\n" !noeuds_qui_ont_repondu; (*nombre de noeuds qui ont répondu*)
+  Printf.fprintf filestats "%i\n" !noeuds_bep32; (*nombre de noeuds qui nutilisent bep32*)
+  Printf.fprintf filestats "%i\n" !noeuds_truncated_t; (*nombre de noeuds qui ont tronqué le champ t*)
+  Printf.fprintf filestats "%i\n" ((!noeuds_asked)/ (!noeuds_qui_ont_repondu)); (*moyenne du nombre de requetes par noeud _qui ont répondu_*)
+  Hashtbl.iter (fun x y -> Printf.fprintf filestats "%s\t%i\n" x y) set_versions;
+  Printf.fprintf filestats "%i\n" !comptTMP; (*nombre de reponses reçues*)
 ;;
+
       
 let rec receive_requests requetes socket= 
   let (f1, f2, f3) =
