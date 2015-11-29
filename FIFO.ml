@@ -1,5 +1,5 @@
 (* Limited size fifo *)
-
+(*structure de pile*)
 type 'a fifo = (int ref * 'a list ref * int * int ref);;
 
 exception EmptyFifo;;

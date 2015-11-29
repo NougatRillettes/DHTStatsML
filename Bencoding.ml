@@ -1,12 +1,12 @@
 (* Queries *)
 
-type qPing =
+type qPing = (*type des requetes ping*)
     {
       qp_t : string;
       qp_id : string;
     };;
 
-type qFindNode =
+type qFindNode =(*type des requetes find_nodes*)
     {
       qfn_t : string;
       qfn_id : string;
@@ -67,14 +67,14 @@ let bencodeQuery  =
 (* Answers *)
 
 
-type aPing =
+type aPing = (*type des réponses ping*)
     {
       ap_t : string;
       ap_id : string;
       ap_v : string;
     };;
 
-type aFindNode =
+type aFindNode = (*type des réponses find_nodes*)
     {
       afn_t : string;
       afn_id : string;
@@ -93,6 +93,7 @@ type bencoded = BDic of (string * bencoded) list | BString of string;;
 exception Bad_Answer of string;;
 
 let parser s =
+(*décode une réponse*)
   let i = ref 0 in
   let parse_string () =
     let i_column = String.index_from s !i ':' in

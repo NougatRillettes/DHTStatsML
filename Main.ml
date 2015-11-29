@@ -5,19 +5,19 @@ open Tools
 let addrBootstrap = ref (ADDR_INET (inet_addr_of_string "82.221.103.244", 6881));;
 
 let ourID = ref "jihgfedbca9876543210";;
-let comptTMP = ref 0;;
+let comptTMP = ref 0;; (*nombre de réponses reçues*)
 
-type node_info = 
+type node_info = (*ensemble d'informations que l'on stocke pour chaque noeud*)
   {
-    mutable asked : int;
-    mutable answered : bool;
-    mutable version_used : string;
-    mutable truncated_t : bool;
-    mutable bep32 : bool;
+    mutable asked : int; (*nombre de requetes envoyées au noeud*)
+    mutable answered : bool; (*ce noeud a-t-il répondu?*)
+    mutable version_used : string; (*quelle est la version utilisée par ce noeud*)
+    mutable truncated_t : bool; (*ce noeud a-t-il tronqué le champ t?*)
+    mutable bep32 : bool; (*ce noeud utilise-t-il la bep32?*)
 }
 
 module NodeInfoMap = Map.Make(String) ;;
-let ens = Hashtbl.create 3_000_000;;
+let ens = Hashtbl.create 3_000_000;; (*ensemble de toutes les infos associées à chaque id*)
 let mens = Mutex.create ();;
 
 
@@ -25,7 +25,7 @@ let statTimer = ref (Unix.time ());;
 let lastCard = ref 0;;
 let endTimer = Unix.time ();;
 
-let addReqFifo target id addr fifo =
+let addReqFifo target id addr fifo = (*ajoute un find_node demandé à id à addr vers target dans fifo*)
    let query =
       bencodeQFindNode {
         qfn_id = !ourID;
@@ -37,7 +37,7 @@ let addReqFifo target id addr fifo =
    FIFO.push (query,addr,id) fifo;
 ;;
 
-let handleReadySocket sck fifo =
+let handleReadySocket sck fifo = (*traite une réponse reçue*)
   incr comptTMP;
   let genAddr s =
     let ip = get_ip s in
@@ -93,7 +93,7 @@ let handleReadySocket sck fifo =
     | _ -> ();
 ;;
 
-let rec envoie socket bencoded serv_addr = 
+let rec envoie socket bencoded serv_addr = (*permet de ne pas arreter le programme lorsque sendto soulève l'erreur ENOBUFS*)
   try 
     sendto socket bencoded 0 (String.length bencoded) [] serv_addr
   with
@@ -105,7 +105,7 @@ let rec envoie socket bencoded serv_addr =
 
 let bootStrapId = String.make 20 '0';;
 
-let dumpStats () =
+let dumpStats () = (*écrit les statistiques de l'échantillon*)
   let hname = try Sys.argv.(1) with | _ -> "" in
   let file = open_out (Printf.sprintf "DHTdata%s_%f" hname (Unix.time ())) in
   let aux s n = (Char.code s.[n])*256 + (Char.code s.[n+1]) in
@@ -164,7 +164,7 @@ let dumpStats () =
 ;;
 
       
-let rec receive_requests requetes socket= 
+let rec receive_requests requetes socket= (*effectue un select de 0 secondes, puis lit et traite toutes les réponses de la socket*)
   let (f1, f2, f3) =
     let rec aux () =
       try
@@ -186,6 +186,7 @@ let rec receive_requests requetes socket=
   end
     
 and send_requests requetes socket= 
+(*envoie une requete de la file, si la file est vide, ajoute des demandes vers bootstrap*)
   let compteur = ref 0 in
   if FIFO.empty requetes then
     for i=0 to 3 do
@@ -227,6 +228,7 @@ and send_requests requetes socket=
 
 
 let rec intermStats () =
+(*affiche des stats lors de l'execution du programme*)
   let timeR = 1 in
   Unix.sleep timeR;
   Mutex.lock mens;
