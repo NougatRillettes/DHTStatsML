@@ -5,25 +5,24 @@ open Tools
 let addrBootstrap = ref (ADDR_INET (inet_addr_of_string "82.221.103.244", 6881));;
 
 let ourID = ref "jihgfedbca9876543210";;
-let comptTMP = ref 0;;
+let comptTMP = ref 0;; (*nombre de réponses reçues*)
 
-type node_info = 
+type node_info = (*ensemble d'informations que l'on stocke pour chaque noeud*)
   {
-    mutable asked : int;
-    mutable answered : bool;
-    mutable version_used : string;
-    mutable truncated_t : bool;
-    mutable bep32 : bool;
+    mutable asked : int; (*nombre de requetes envoyées au noeud*)
+    mutable answered : bool; (*ce noeud a-t-il répondu?*)
+    mutable version_used : string; (*quelle est la version utilisée par ce noeud*)
+    mutable truncated_t : bool; (*ce noeud a-t-il tronqué le champ t?*)
+    mutable bep32 : bool; (*ce noeud utilise-t-il la bep32?*)
 }
 
-module NodeInfoMap = Map.Make(String) ;;
-let ens = Hashtbl.create 500000;;
+let ens = Hashtbl.create 500000;; 
 
 
 let statTimer = ref (Unix.time ());;
 let lastCard = ref 0.0;;
 
-let addReqFifo target id addr fifo =
+let addReqFifo target id addr fifo = (*ajoute un find_node demandé à id à addr vers target dans fifo*)
    let query =
       bencodeQFindNode {
         qfn_id = !ourID;
@@ -35,7 +34,7 @@ let addReqFifo target id addr fifo =
    FIFO.push (query,addr,id) fifo;
 ;;
 
-let handleReadySocket sck fifo =
+let handleReadySocket sck fifo = (*traite une réponse reçue*)
   incr comptTMP;
   let genAddr s =
     let ip = get_ip s in
@@ -90,6 +89,7 @@ let handleReadySocket sck fifo =
 ;;
 
 let rec envoie socket bencoded serv_addr = 
+(*permet de ne pas arreter le programme lorsque sendto soulève l'erreur ENOBUFS*)
   try 
     sendto socket bencoded 0 (String.length bencoded) [] serv_addr
   with
@@ -102,6 +102,7 @@ let rec envoie socket bencoded serv_addr =
 let bootStrapId = String.make 20 '0';;
 
 let dumpStats () =
+(*écrit les statistiques de l'échantillon*)
   let hname = try
                 Sys.argv.(1)
     with | _ -> ""
@@ -134,6 +135,7 @@ let dumpStats () =
 ;;
       
 let rec receive_requests requetes socket= 
+(*effectue un select de 0 secondes, puis lit *)
   let (f1, f2, f3) =
     let rec aux () =
       try
