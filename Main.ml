@@ -64,7 +64,11 @@ let handleReadySocket sck fifo = (*traite une réponse reçue*)
     (*Printf.printf "Receiving from %S\n%!" answ.afn_id; *)
     ensEntry.version_used <- answ.afn_v;
     ensEntry.truncated_t <- ensEntry.truncated_t || (not (answ.afn_t = "789632145"));
-    ensEntry.bep32 <- ensEntry.bep32 || not(answ.afn_nodes6 = []);
+    begin
+      match answ.afn_nodes6 with
+      |["none"] -> ()
+      | _ -> ensEntry.bep32 <- true
+    end;
     (* Discover neighbors *)
     if not ensEntry.answered then
       begin

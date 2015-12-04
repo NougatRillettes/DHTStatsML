@@ -236,10 +236,10 @@ let bencoded_to_Find_NodesAnswer b=
     try      
       begin
 	match (List.assoc "nodes6" dic) with
-	|BString id_nodes -> decoupe_nodes6 id_nodes 
+	|BString id_nodes -> []
 	|BDic _ ->  raise (Bad_Answer "Contenu du champ nodes6 invalide")
       end
-    with Not_found -> []
+    with Not_found -> ["none"]
   in
   {afn_t = a; afn_id = num; afn_nodes = nodes; afn_nodes6 = nodes6; afn_v = v}
 ;;
